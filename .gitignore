@@ -1,0 +1,13 @@
+# dependencies
+node_modules/
+
+# build output
+addon/dist/
+
+# env
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db

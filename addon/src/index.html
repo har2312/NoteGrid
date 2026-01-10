@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="description" content="Get started with Add-on development using JavaScript" />
+        <meta name="keywords" content="Adobe, Express, Add-On, JavaScript" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Get Started</title>
+        <style>
+            #board {
+              margin-top: 12px;
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+            }
+          
+            .sticky {
+              padding: 10px 12px;
+              border-radius: 8px;
+              font-size: 14px;
+              line-height: 1.4;
+              border: 1px solid #ccc;
+              background: #f3f3f3;
+            }
+          
+            .sticky.task {
+              background: #fff7c2;
+              border-color: #e6d36a;
+            }
+          
+            .sticky.decision {
+              background: #d6f0ff;
+              border-color: #7cc4e8;
+            }
+          
+            .sticky.question {
+              background: #ffe2e2;
+              border-color: #e09a9a;
+            }
+          </style>
+          
+    </head>
+    <body>
+    <div id="app">
+        <h2>Smart Sticky Notes Board</h2>
+
+        <textarea
+            id="inputText"
+            placeholder="Paste meeting notes, emails, or chat conversations here..."
+        ></textarea>
+
+        <button id="analyzeBtn">Analyze & Create Notes</button>
+
+        <div id="board"></div>
+    </div>
+
+
+    <script type="module" src="./index.js"></script>
+
+
+    </body>
+</html>
