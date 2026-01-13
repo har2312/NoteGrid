@@ -30,11 +30,23 @@ button {
   cursor: pointer;
 }
 
+/* Create New Note button styling */
+#createNoteBtn {
+  background: #4caf50;
+  margin-top: 8px;
+}
+
+#createNoteBtn:hover {
+  background: #45a049;
+}
+
 #board {
   margin-top: 12px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px;
+  position: relative;
+  min-height: 200px;
+  width: 100%;
+  /* Allow notes to be positioned absolutely within board */
+  /* Board will expand as notes are positioned */
 }
 
 .sticky {
@@ -42,6 +54,141 @@ button {
   border-radius: 8px;
   font-size: 13px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  position: absolute;
+  min-width: 150px;
+  max-width: 250px;
+  cursor: move;
+  user-select: none;
+  /* Prevent text selection during drag */
+  transition: all 0.2s ease;
+}
+
+/* Note content wrapper - hides text when collapsed */
+.sticky-content {
+  position: relative;
+  width: 100%;
+}
+
+/* Page/Slide tag - subtle metadata display */
+.sticky-page-tag {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-size: 10px;
+  color: rgba(0, 0, 0, 0.5);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  z-index: 5;
+  pointer-events: none; /* Don't interfere with note interactions */
+  user-select: none;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Adjust collapse button position when tag is present */
+.sticky:has(.sticky-page-tag) .sticky-collapse-btn {
+  top: 4px;
+  right: 4px;
+}
+
+/* Hide tag when note is collapsed */
+.sticky.collapsed .sticky-page-tag {
+  display: none;
+}
+
+/* Collapse button */
+.sticky-collapse-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  z-index: 10;
+  transition: background 0.2s;
+}
+
+.sticky-collapse-btn:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Collapsed state - shows as small colored circle */
+.sticky.collapsed {
+  min-width: 24px;
+  max-width: 24px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  cursor: move; /* Still draggable, but also clickable to expand */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sticky.collapsed .sticky-content {
+  display: none;
+}
+
+.sticky.collapsed .sticky-collapse-btn {
+  display: none;
+}
+
+/* Collapsed dot - inner circle showing note type color */
+.sticky.collapsed::after {
+  content: '';
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* Color dots for each note type when collapsed */
+.sticky.collapsed.task::after {
+  background: #fff3a0;
+  border: 2px solid #e6d36a;
+}
+
+.sticky.collapsed.decision::after,
+.sticky.collapsed.personal::after {
+  background: #cce5ff;
+  border: 2px solid #7cc4e8;
+}
+
+.sticky.collapsed.question::after,
+.sticky.collapsed.mention::after {
+  background: #ffe2e2;
+  border: 2px solid #e09a9a;
+}
+
+.sticky.collapsed.suggestion::after {
+  background: #c8f5c8;
+  border: 2px solid #7dd87d;
+}
+
+/* Allow text selection when editing (not dragging) */
+.sticky[contenteditable="true"]:not(.dragging) {
+  user-select: text;
+  cursor: text;
+}
+
+/* Visual feedback while dragging */
+.sticky.dragging {
+  opacity: 0.8;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  cursor: grabbing;
 }
 
 .sticky.task {
@@ -56,9 +203,171 @@ button {
   background: #e5ccff;
 }
 
+/* New note types for manual creation */
+.sticky.personal {
+  background: #cce5ff;
+  border-color: #7cc4e8;
+}
+
+.sticky.mention {
+  background: #ffe2e2;
+  border-color: #e09a9a;
+}
+
+.sticky.suggestion {
+  background: #c8f5c8;
+  border-color: #7dd87d;
+}
+
+/* Editable sticky notes */
+.sticky[contenteditable="true"] {
+  outline: 2px solid #6b4eff;
+  outline-offset: 2px;
+  min-height: 40px;
+}
+
+.sticky[contenteditable="true"]:focus {
+  outline-color: #4caf50;
+}
+
 input {
   width: 100%;
   padding: 8px;
   margin-bottom: 6px;
   font-size: 12px;
+}
+
+/* Modal styles */
+#noteTypeModal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+
+#noteTypeModal.show {
+  display: flex;
+}
+
+#modalContent {
+  background: white;
+  padding: 32px;
+  border-radius: 12px;
+  min-width: 400px;
+  max-width: 90%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* Modal icon - purple circle */
+.modal-icon {
+  width: 64px;
+  height: 64px;
+  background: #6b4eff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.modal-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+/* Modal title */
+.modal-title {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+/* Modal description */
+.modal-description {
+  margin: 0 0 24px 0;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+}
+
+/* Modal input field */
+.modal-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 14px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.modal-input:focus {
+  outline: none;
+  border-color: #6b4eff;
+}
+
+.modal-input::placeholder {
+  color: #999;
+}
+
+/* Modal action buttons */
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.btn-primary {
+  flex: 1;
+  padding: 12px 24px;
+  background: #4a4a4a;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-primary:hover {
+  background: #3a3a3a;
+}
+
+.btn-primary:active {
+  background: #2a2a2a;
+}
+
+.btn-secondary {
+  flex: 1;
+  padding: 12px 24px;
+  background: white;
+  color: #1a1a1a;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.btn-secondary:active {
+  background: #ebebeb;
 }
