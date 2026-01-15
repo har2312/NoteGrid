@@ -46,7 +46,7 @@
     <div id="app">
         <div id="home-view" class="view active" data-view="home" aria-hidden="false">
             <div class="top-nav">
-                <button class="nav-tab active">Sticky Notes</button>
+                <button id="stickyTabBtn" class="nav-tab active">Sticky Notes</button>
                 <button class="nav-tab">Teams</button>
                 <button class="nav-tab">Discussion</button>
             </div>
@@ -65,6 +65,15 @@
                 <p class="hero-subtitle">Start writing your thoughts with our rich text editor.</p>
                 <button id="createNoteBtn" class="hero-primary-btn">+ Create New Note</button>
             </section>
+        </div>
+
+        <div id="sticky-notes-view" class="view" data-view="sticky-notes" aria-hidden="true">
+            <header class="sticky-view-header">
+                <button id="stickyBackBtn" class="back-button" aria-label="Back to home">← Back</button>
+                <h2 class="sticky-page-title">Saved Sticky Notes</h2>
+            </header>
+            <p class="sticky-page-subtitle">Browse previously generated notes.</p>
+            <div id="savedNotesList" class="saved-notes-list" aria-live="polite"></div>
         </div>
 
         <div id="input-view" class="view" data-view="input" aria-hidden="true">

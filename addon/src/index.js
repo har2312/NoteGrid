@@ -4,9 +4,13 @@ const board = document.getElementById("board");
 const homeView = document.querySelector('[data-view="home"]');
 const inputView = document.querySelector('[data-view="input"]');
 const resultView = document.querySelector('[data-view="result"]');
+const stickyView = document.querySelector('[data-view="sticky-notes"]');
 const noteTitleHeader = document.getElementById("noteTitleHeader");
 const resultTitle = document.getElementById("resultTitle");
 const backToHomeBtn = document.getElementById("backToHomeBtn");
+const stickyTabBtn = document.getElementById("stickyTabBtn");
+const savedNotesList = document.getElementById("savedNotesList");
+const stickyBackBtn = document.getElementById("stickyBackBtn");
 
 // Step flow elements
 const createNoteBtn = document.getElementById("createNoteBtn");
@@ -24,6 +28,10 @@ const finalizeNoteBtn = document.getElementById("finalizeNoteBtn");
 
 let currentNoteName = "";
 let selectedFiles = [];
+const LOCAL_DB_KEY = "sticky_notes_db";
+let currentView = document.querySelector('.view.active')?.getAttribute('data-view') || "home";
+let previousView = null;
+const viewHistory = [currentView];
 
 const TYPE_ORDER = ["task", "decision", "question"];
 const TYPE_LABELS = {
@@ -32,13 +40,44 @@ const TYPE_LABELS = {
   question: "Questions"
 };
 
-function setActiveView(target) {
+function updateViewClasses() {
   const views = document.querySelectorAll('[data-view]');
   views.forEach((v) => {
-    const isMatch = v.getAttribute('data-view') === target;
+    const isMatch = v.getAttribute('data-view') === currentView;
     v.classList.toggle('active', isMatch);
     v.setAttribute('aria-hidden', (!isMatch).toString());
   });
+}
+
+function updateBackVisibility() {
+  const hasPrev = viewHistory.length > 1;
+  [backToHomeBtn, stickyBackBtn].forEach((btn) => {
+    if (!btn) return;
+    btn.style.display = hasPrev ? "inline-flex" : "none";
+  });
+}
+
+function setActiveView(target) {
+  if (!target || target === currentView) {
+    updateViewClasses();
+    updateBackVisibility();
+    return;
+  }
+
+  previousView = currentView;
+  currentView = target;
+  viewHistory.push(target);
+  updateViewClasses();
+  updateBackVisibility();
+}
+
+function goBack() {
+  if (viewHistory.length <= 1) return;
+  viewHistory.pop();
+  currentView = viewHistory[viewHistory.length - 1];
+  previousView = viewHistory.length > 1 ? viewHistory[viewHistory.length - 2] : null;
+  updateViewClasses();
+  updateBackVisibility();
 }
 
 function setNoteTitle(name) {
@@ -46,6 +85,103 @@ function setNoteTitle(name) {
   contentStepTitle.textContent = currentNoteName;
   noteTitleHeader.textContent = currentNoteName;
   resultTitle.textContent = currentNoteName;
+}
+
+function getAllNotes() {
+  try {
+    const raw = localStorage.getItem(LOCAL_DB_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.warn("Failed to read saved notes", e);
+    return [];
+  }
+}
+
+function saveAllNotes(notes) {
+  try {
+    localStorage.setItem(LOCAL_DB_KEY, JSON.stringify(notes));
+  } catch (e) {
+    console.warn("Failed to write notes", e);
+  }
+}
+
+function saveNewNote(title, stickyNotes) {
+  const notes = getAllNotes();
+  const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  const payload = {
+    id,
+    title,
+    createdAt: new Date().toISOString(),
+    stickyNotes: (stickyNotes || []).map((n) => JSON.stringify(n))
+  };
+  notes.unshift(payload);
+  saveAllNotes(notes);
+  return payload;
+}
+
+function formatDate(iso) {
+  try {
+    return new Date(iso).toLocaleString();
+  } catch (_e) {
+    return "";
+  }
+}
+
+function renderSavedNotesList(notes) {
+  if (!savedNotesList) return;
+  savedNotesList.replaceChildren();
+
+  if (!notes.length) {
+    savedNotesList.appendChild(document.createTextNode("No saved notes yet."));
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  notes.forEach((note) => {
+    const card = document.createElement("div");
+    card.className = "saved-note-card";
+    card.onclick = () => openNote(note.id);
+
+    const titleEl = document.createElement("p");
+    titleEl.className = "saved-note-title";
+    titleEl.textContent = note.title || "Untitled";
+
+    const metaEl = document.createElement("p");
+    metaEl.className = "saved-note-meta";
+    metaEl.textContent = formatDate(note.createdAt);
+
+    card.appendChild(titleEl);
+    card.appendChild(metaEl);
+    fragment.appendChild(card);
+  });
+
+  savedNotesList.appendChild(fragment);
+}
+
+function loadSavedNotes() {
+  const notes = getAllNotes();
+  renderSavedNotesList(notes);
+}
+
+function openNote(noteId) {
+  const notes = getAllNotes();
+  const note = notes.find((n) => n.id === noteId);
+  if (!note) return;
+
+  setNoteTitle(note.title || "Untitled note");
+  const parsedNotes = (note.stickyNotes || []).map((s) => {
+    try {
+      const obj = JSON.parse(s);
+      return obj && obj.type && obj.text ? obj : { type: "task", text: String(s) };
+    } catch (_e) {
+      return { type: "task", text: String(s) };
+    }
+  });
+
+  setActiveView("result");
+  renderStructuredNotes(parsedNotes);
 }
 
 // ============================================
@@ -184,6 +320,8 @@ async function runAiOnContent() {
   try {
     const notes = await analyzeText(contentInput.value, selectedFiles);
     renderStructuredNotes(notes);
+    saveNewNote(currentNoteName || "Untitled note", notes);
+    loadSavedNotes();
   } catch (e) {
     board.replaceChildren(document.createTextNode("AI failed. Is backend running?"));
   }
@@ -267,12 +405,34 @@ finalizeNoteBtn.onclick = () => {
   runAiOnContent();
 };
 
-// Back navigation from result to home
+// Back navigation using history
 backToHomeBtn.onclick = () => {
   resetContentStep();
   board.replaceChildren();
-  setActiveView("home");
+  goBack();
 };
+
+// Load saved notes and switch to sticky notes view when tab is clicked
+if (stickyTabBtn) {
+  stickyTabBtn.addEventListener("click", () => {
+    loadSavedNotes();
+    setActiveView("sticky-notes");
+  });
+}
+
+// Back from sticky notes list to home
+if (stickyBackBtn) {
+  stickyBackBtn.addEventListener("click", () => {
+    goBack();
+  });
+}
+
+// Initial load of saved notes
+loadSavedNotes();
+
+// Sync initial view state
+updateViewClasses();
+updateBackVisibility();
 
 // Upload handling
 uploadBtn.onclick = () => {
