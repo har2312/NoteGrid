@@ -31,6 +31,7 @@ let selectedFiles = [];
 const LOCAL_DB_KEY = "sticky_notes_db";
 let currentView = document.querySelector('.view.active')?.getAttribute('data-view') || "home";
 let previousView = null;
+let entryView = null; // Track which view opened result-view
 const viewHistory = [currentView];
 
 const TYPE_ORDER = ["task", "decision", "question"];
@@ -50,10 +51,11 @@ function updateViewClasses() {
 }
 
 function updateBackVisibility() {
-  const hasPrev = viewHistory.length > 1;
+  // Show back button based on current view rules
+  const showBack = currentView !== "home";
   [backToHomeBtn, stickyBackBtn].forEach((btn) => {
     if (!btn) return;
-    btn.style.display = hasPrev ? "inline-flex" : "none";
+    btn.style.display = showBack ? "inline-flex" : "none";
   });
 }
 
@@ -65,6 +67,12 @@ function setActiveView(target) {
   }
 
   previousView = currentView;
+  
+  // Track entry point for result view
+  if (target === "result" && currentView !== "result") {
+    entryView = currentView;
+  }
+  
   currentView = target;
   viewHistory.push(target);
   updateViewClasses();
@@ -72,6 +80,39 @@ function setActiveView(target) {
 }
 
 function goBack() {
+  // Explicit back-navigation rules based on current view
+
+  // Rule 1: From result-view, navigate based on entryView
+  if (currentView === "result") {
+    if (entryView === "sticky-notes") {
+      currentView = "sticky-notes";
+    } else {
+      // Default: back to home (covers input, home, or null entry)
+      currentView = "home";
+    }
+    entryView = null; // Reset entry point
+    viewHistory.length = 1; // Clear history
+    updateViewClasses();
+    updateBackVisibility();
+    return;
+  }
+
+  // Rule 2: From sticky-notes-view, always back to home
+  if (currentView === "sticky-notes") {
+    currentView = "home";
+    entryView = null;
+    viewHistory.length = 1;
+    updateViewClasses();
+    updateBackVisibility();
+    return;
+  }
+
+  // Rule 3: From home-view, do nothing (no back button visible)
+  if (currentView === "home") {
+    return;
+  }
+
+  // Fallback: standard history-based back
   if (viewHistory.length <= 1) return;
   viewHistory.pop();
   currentView = viewHistory[viewHistory.length - 1];
