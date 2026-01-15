@@ -9,8 +9,21 @@ const noteTitleHeader = document.getElementById("noteTitleHeader");
 const resultTitle = document.getElementById("resultTitle");
 const backToHomeBtn = document.getElementById("backToHomeBtn");
 const stickyTabBtn = document.getElementById("stickyTabBtn");
+const teamTabBtn = document.getElementById("teamTabBtn");
+const discussionTabBtn = document.getElementById("discussionTabBtn");
 const savedNotesList = document.getElementById("savedNotesList");
 const stickyBackBtn = document.getElementById("stickyBackBtn");
+const teamBackBtn = document.getElementById("teamBackBtn");
+const teamList = document.getElementById("teamList");
+const addMemberBtn = document.getElementById("addMemberBtn");
+const teamModal = document.getElementById("teamModal");
+const teamForm = document.getElementById("teamForm");
+const teamSubmitBtn = teamForm?.querySelector('button[type="submit"]');
+const memberNameInput = document.getElementById("memberName");
+const memberEmailInput = document.getElementById("memberEmail");
+const memberRoleInput = document.getElementById("memberRole");
+const memberIsLeadInput = document.getElementById("memberIsLead");
+const teamCancelBtn = document.getElementById("teamCancelBtn");
 
 // Step flow elements
 const createNoteBtn = document.getElementById("createNoteBtn");
@@ -29,6 +42,7 @@ const finalizeNoteBtn = document.getElementById("finalizeNoteBtn");
 let currentNoteName = "";
 let selectedFiles = [];
 const LOCAL_DB_KEY = "sticky_notes_db";
+const TEAM_DB_KEY = "team_store";
 let currentView = document.querySelector('.view.active')?.getAttribute('data-view') || "home";
 let previousView = null;
 let entryView = null; // Track which view opened result-view
@@ -39,6 +53,61 @@ const TYPE_LABELS = {
   task: "Tasks",
   decision: "Decisions",
   question: "Questions"
+};
+
+const teamStore = {
+  members: [],
+  load() {
+    try {
+      const raw = localStorage.getItem(TEAM_DB_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_e) {
+      return [];
+    }
+  },
+  persist() {
+    try {
+      localStorage.setItem(TEAM_DB_KEY, JSON.stringify(this.members));
+    } catch (_e) {
+      /* no-op */
+    }
+  },
+  init() {
+    this.members = this.load();
+    return this.members;
+  },
+  getMembers() {
+    return [...this.members];
+  },
+  addMember(member) {
+    const payload = {
+      id: (crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+      name: member.name?.trim() || "Unnamed",
+      email: member.email?.trim() || "",
+      role: member.role?.trim() || "",
+      isLead: Boolean(member.isLead)
+    };
+
+    if (payload.isLead) {
+      this.members = this.members.map((m) => ({ ...m, isLead: false }));
+    }
+
+    this.members.push(payload);
+    this.persist();
+    return payload;
+  },
+  setLead(id) {
+    this.members = this.members.map((m) => ({ ...m, isLead: m.id === id }));
+    this.persist();
+  },
+  clearIfCorrupt() {
+    if (!Array.isArray(this.members)) {
+      this.members = [];
+      this.persist();
+    }
+  }
 };
 
 function updateViewClasses() {
@@ -59,66 +128,72 @@ function updateBackVisibility() {
   });
 }
 
-function setActiveView(target) {
-  if (!target || target === currentView) {
+function setActiveNav(tabId) {
+  document.querySelectorAll('.nav-tab').forEach((btn) => {
+    btn.classList.toggle('active', btn.id === tabId);
+  });
+}
+
+/**
+ * Centralized navigation helper to keep state/history in sync.
+ * @param {"home"|"sticky-notes"|"input"|"result"} target
+ * @param {{ replaceHistory?: boolean; entrySource?: string }} options
+ */
+function navigateTo(target, options = {}) {
+  const { replaceHistory = false, entrySource } = options;
+  if (!target) return;
+
+  // If we are replacing the top of the stack (e.g., back from result), drop it first
+  if (replaceHistory && viewHistory.length) {
+    viewHistory.pop();
+  }
+
+  const nextIsSame = currentView === target && !replaceHistory;
+  if (nextIsSame) {
     updateViewClasses();
     updateBackVisibility();
     return;
   }
 
-  previousView = currentView;
-  
-  // Track entry point for result view
-  if (target === "result" && currentView !== "result") {
-    entryView = currentView;
-  }
-  
+  const prev = currentView;
+  previousView = prev;
   currentView = target;
-  viewHistory.push(target);
+
+  // Track entry for result view so back knows where to go
+  if (target === "result") {
+    entryView = entrySource || prev || "home";
+  }
+
+  // Avoid duplicate entries when replacing or navigating to same top view
+  const last = viewHistory[viewHistory.length - 1];
+  if (last !== target) {
+    viewHistory.push(target);
+  }
+
   updateViewClasses();
   updateBackVisibility();
 }
 
 function goBack() {
-  // Explicit back-navigation rules based on current view
-
-  // Rule 1: From result-view, navigate based on entryView
+  // From result-view, jump back to entryView (sticky-notes or input/home)
   if (currentView === "result") {
-    if (entryView === "sticky-notes") {
-      currentView = "sticky-notes";
-    } else {
-      // Default: back to home (covers input, home, or null entry)
-      currentView = "home";
-    }
-    entryView = null; // Reset entry point
-    viewHistory.length = 1; // Clear history
-    updateViewClasses();
-    updateBackVisibility();
-    return;
-  }
-
-  // Rule 2: From sticky-notes-view, always back to home
-  if (currentView === "sticky-notes") {
-    currentView = "home";
+    const destination = entryView || previousView || "home";
     entryView = null;
-    viewHistory.length = 1;
+    navigateTo(destination, { replaceHistory: true });
+    return;
+  }
+
+  // Nothing to do from home
+  if (currentView === "home") return;
+
+  // Standard history pop
+  if (viewHistory.length > 1) {
+    viewHistory.pop();
+    currentView = viewHistory[viewHistory.length - 1];
+    previousView = viewHistory.length > 1 ? viewHistory[viewHistory.length - 2] : null;
     updateViewClasses();
     updateBackVisibility();
-    return;
   }
-
-  // Rule 3: From home-view, do nothing (no back button visible)
-  if (currentView === "home") {
-    return;
-  }
-
-  // Fallback: standard history-based back
-  if (viewHistory.length <= 1) return;
-  viewHistory.pop();
-  currentView = viewHistory[viewHistory.length - 1];
-  previousView = viewHistory.length > 1 ? viewHistory[viewHistory.length - 2] : null;
-  updateViewClasses();
-  updateBackVisibility();
 }
 
 function setNoteTitle(name) {
@@ -168,6 +243,108 @@ function formatDate(iso) {
   } catch (_e) {
     return "";
   }
+}
+
+function openTeamModal() {
+  console.log("Opening team modal");
+  if (!teamModal) {
+    console.error("Team modal element not found!");
+    return;
+  }
+  teamModal.classList.add("show");
+  teamModal.setAttribute("aria-hidden", "false");
+  console.log("Modal classes after open:", teamModal.className);
+  setTimeout(() => memberNameInput?.focus(), 60);
+}
+
+function closeTeamModal() {
+  console.log("Attempting to close modal");
+  if (!teamModal) {
+    console.warn("Modal element not found");
+    return;
+  }
+  teamModal.classList.remove("show");
+  teamModal.setAttribute("aria-hidden", "true");
+  console.log("Modal closed");
+
+  if (teamForm) {
+    teamForm.reset();
+    console.log("Form reset");
+  }
+  if (memberIsLeadInput) {
+    memberIsLeadInput.checked = false;
+    console.log("Lead checkbox reset");
+  }
+}
+
+function renderTeamList() {
+  console.log("Rendering team list");
+  if (!teamList) {
+    console.warn("Team list element not found");
+    return;
+  }
+  teamList.replaceChildren();
+
+  const members = teamStore.getMembers();
+  console.log("Current team members:", members);
+  
+  if (!members.length) {
+    const emptyState = document.createElement("div");
+    emptyState.className = "team-empty-state";
+    emptyState.innerHTML = `<p>No team members yet.<br>Click "+ Add" to get started.</p>`;
+    teamList.appendChild(emptyState);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  members.forEach((member) => {
+    const row = document.createElement("div");
+    row.className = "team-row";
+
+    // Info container (name + email)
+    const info = document.createElement("div");
+    info.className = "team-info";
+
+    const nameEl = document.createElement("div");
+    nameEl.className = "team-name";
+    nameEl.textContent = member.name || "Unnamed";
+
+    const emailEl = document.createElement("div");
+    emailEl.className = "team-email";
+    emailEl.textContent = member.email || "";
+
+    info.appendChild(nameEl);
+    info.appendChild(emailEl);
+
+    // Action area (Lead label OR Make Lead action)
+    const action = document.createElement("div");
+    action.className = "team-action";
+
+    if (member.isLead) {
+      const leadLabel = document.createElement("span");
+      leadLabel.className = "lead-label";
+      leadLabel.textContent = "Lead";
+      action.appendChild(leadLabel);
+    } else {
+      const makeLeadBtn = document.createElement("button");
+      makeLeadBtn.type = "button";
+      makeLeadBtn.className = "make-lead-action";
+      makeLeadBtn.textContent = "Make Lead";
+      makeLeadBtn.onclick = () => {
+        teamStore.setLead(member.id);
+        renderTeamList();
+      };
+      action.appendChild(makeLeadBtn);
+    }
+
+    row.appendChild(info);
+    row.appendChild(action);
+    fragment.appendChild(row);
+  });
+
+  teamList.appendChild(fragment);
+  console.log("Team list rendered successfully");
 }
 
 function renderSavedNotesList(notes) {
@@ -221,7 +398,7 @@ function openNote(noteId) {
     }
   });
 
-  setActiveView("result");
+    navigateTo("result", { entrySource: "sticky-notes" });
   renderStructuredNotes(parsedNotes);
 }
 
@@ -389,7 +566,7 @@ function showContentStep(name) {
   contentStep.classList.add("show");
   contentStep.setAttribute("aria-hidden", "false");
   board.replaceChildren();
-  setActiveView("input");
+  navigateTo("input");
   setTimeout(() => contentInput.focus(), 50);
 }
 
@@ -407,6 +584,88 @@ createNoteBtn.onclick = () => {
   resetContentStep();
   showNameModal();
 };
+
+// Team: open add member modal
+if (addMemberBtn) {
+  addMemberBtn.onclick = () => {
+    console.log("Add Member button clicked");
+    setActiveNav("teamTabBtn");
+    navigateTo("team");
+    // Small delay to ensure view transition completes before opening modal
+    setTimeout(() => openTeamModal(), 50);
+  };
+} else {
+  console.error("Add Member button not found!");
+}
+
+// Team: cancel/close modal
+if (teamCancelBtn) {
+  teamCancelBtn.onclick = () => closeTeamModal();
+}
+
+// Close team modal when clicking backdrop
+if (teamModal) {
+  teamModal.addEventListener("click", (e) => {
+    if (e.target === teamModal) {
+      closeTeamModal();
+    }
+  });
+}
+
+// Team form submit - single handler
+if (teamForm) {
+  console.log("Attaching submit event listener to team form");
+  
+  const handleSubmit = (e) => {
+    console.log("=== FORM SUBMIT EVENT TRIGGERED ===");
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      const name = memberNameInput?.value.trim();
+      const email = memberEmailInput?.value.trim();
+      const role = memberRoleInput?.value.trim();
+      const isLead = Boolean(memberIsLeadInput?.checked);
+
+      console.log("Member details:", { name, email, role, isLead });
+
+      if (!name || !email || !role) {
+        console.warn("Missing required fields");
+        alert("Please fill in all required fields (Name, Email, and Role)");
+        return;
+      }
+
+      const newMember = teamStore.addMember({ name, email, role, isLead });
+      console.log("Member added to store:", newMember);
+      console.log("All members:", teamStore.getMembers());
+
+      renderTeamList();
+      console.log("Team list rendered");
+
+      closeTeamModal();
+      console.log("Modal closed");
+    } catch (error) {
+      console.error("Error in form submission:", error);
+    }
+  };
+  
+  teamForm.addEventListener("submit", handleSubmit);
+  
+  // Also add click handler to submit button as backup
+  const submitBtn = teamForm.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    console.log("Also attaching click handler to submit button");
+    submitBtn.addEventListener("click", (e) => {
+      console.log("Submit button clicked directly");
+      e.preventDefault();
+      handleSubmit(e);
+    });
+  }
+  
+  console.log("Submit event listener attached successfully");
+} else {
+  console.error("Team form not found - cannot attach submit listener");
+}
 
 // Cancel Step 1
 nameCancelBtn.onclick = () => {
@@ -442,7 +701,7 @@ nameInput.addEventListener("keydown", (e) => {
 finalizeNoteBtn.onclick = () => {
   // Move to result view immediately and show pending state
   board.replaceChildren(document.createTextNode("Analyzing with AI…"));
-  setActiveView("result");
+  navigateTo("result", { entrySource: "home" });
   runAiOnContent();
 };
 
@@ -450,14 +709,30 @@ finalizeNoteBtn.onclick = () => {
 backToHomeBtn.onclick = () => {
   resetContentStep();
   board.replaceChildren();
-  goBack();
+  navigateTo("home");
 };
 
-// Load saved notes and switch to sticky notes view when tab is clicked
+// Tab navigation
 if (stickyTabBtn) {
   stickyTabBtn.addEventListener("click", () => {
+    setActiveNav("stickyTabBtn");
     loadSavedNotes();
-    setActiveView("sticky-notes");
+    navigateTo("sticky-notes");
+  });
+}
+
+if (teamTabBtn) {
+  teamTabBtn.addEventListener("click", () => {
+    setActiveNav("teamTabBtn");
+    renderTeamList();
+    navigateTo("team");
+  });
+}
+
+if (discussionTabBtn) {
+  discussionTabBtn.addEventListener("click", () => {
+    setActiveNav("discussionTabBtn");
+    navigateTo("discussion");
   });
 }
 
@@ -468,8 +743,32 @@ if (stickyBackBtn) {
   });
 }
 
-// Initial load of saved notes
+// Back from team view to home
+if (teamBackBtn) {
+  teamBackBtn.addEventListener("click", () => {
+    setActiveNav("stickyTabBtn");
+    navigateTo("home");
+  });
+}
+
+// Initial load of saved notes and team data
+console.log("Initializing app...");
+console.log("Team elements check:");
+console.log("  addMemberBtn:", addMemberBtn ? "FOUND" : "NOT FOUND");
+console.log("  teamModal:", teamModal ? "FOUND" : "NOT FOUND");
+console.log("  teamForm:", teamForm ? "FOUND" : "NOT FOUND");
+console.log("  teamList:", teamList ? "FOUND" : "NOT FOUND");
+console.log("  memberNameInput:", memberNameInput ? "FOUND" : "NOT FOUND");
+console.log("  memberEmailInput:", memberEmailInput ? "FOUND" : "NOT FOUND");
+console.log("  memberRoleInput:", memberRoleInput ? "FOUND" : "NOT FOUND");
+console.log("  teamCancelBtn:", teamCancelBtn ? "FOUND" : "NOT FOUND");
+
 loadSavedNotes();
+teamStore.init();
+teamStore.clearIfCorrupt();
+console.log("Team store initialized with members:", teamStore.getMembers());
+renderTeamList();
+console.log("Initial render complete");
 
 // Sync initial view state
 updateViewClasses();

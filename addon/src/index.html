@@ -44,13 +44,13 @@
     </head>
     <body>
     <div id="app">
-        <div id="home-view" class="view active" data-view="home" aria-hidden="false">
-            <div class="top-nav">
-                <button id="stickyTabBtn" class="nav-tab active">Sticky Notes</button>
-                <button class="nav-tab">Teams</button>
-                <button class="nav-tab">Discussion</button>
-            </div>
+        <div class="top-nav">
+            <button id="stickyTabBtn" class="nav-tab">Notes</button>
+            <button id="teamTabBtn" class="nav-tab">Team</button>
+            <button id="discussionTabBtn" class="nav-tab">Discussion</button>
+        </div>
 
+        <div id="home-view" class="view active" data-view="home" aria-hidden="false">
             <section class="create-note-hero">
                 <div class="hero-icon">
                     <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -109,6 +109,31 @@
             <div id="board"></div>
         </div>
 
+        <div id="team-view" class="view" data-view="team" aria-hidden="true">
+            <header class="team-header-sticky">
+                <div class="header-row-1">
+                    <button id="teamBackBtn" class="icon-back-btn">←</button>
+                    <button id="addMemberBtn" class="compact-add-btn" type="button">+ Add</button>
+                </div>
+                <h2 class="header-title">Team Members</h2>
+                <p class="header-subtitle">Manage collaborators for this project</p>
+            </header>
+            <div class="team-list-scroll">
+                <div id="teamList" class="team-list-compact" aria-live="polite"></div>
+            </div>
+        </div>
+
+        <div id="discussion-view" class="view" data-view="discussion" aria-hidden="true">
+            <header class="team-header">
+                <div>
+                    <p class="content-eyebrow">DISCUSSION</p>
+                    <h2 class="note-title">Discussion</h2>
+                    <p class="content-subtitle">Mentions will use team members here later.</p>
+                </div>
+            </header>
+            <p class="content-subtitle">Coming soon: discuss and @mention teammates from the shared team list.</p>
+        </div>
+
         <!-- Name popup -->
         <div id="nameModal" class="name-modal" aria-hidden="true">
             <div class="name-modal-card">
@@ -124,6 +149,34 @@
                     <button id="nameCancelBtn" class="btn-secondary">Cancel</button>
                     <button id="nameContinueBtn" class="btn-primary">Continue</button>
                 </div>
+            </div>
+        </div>
+
+        <div id="teamModal" class="name-modal" aria-hidden="true">
+            <div class="name-modal-card">
+                <h3 class="modal-title">Add team member</h3>
+                <form id="teamForm" class="team-form">
+                    <label class="team-field">
+                        <span>Name</span>
+                        <input type="text" id="memberName" required placeholder="Full name" />
+                    </label>
+                    <label class="team-field">
+                        <span>Email</span>
+                        <input type="email" id="memberEmail" required placeholder="name@company.com" />
+                    </label>
+                    <label class="team-field">
+                        <span>Role</span>
+                        <input type="text" id="memberRole" required placeholder="Product Manager" />
+                    </label>
+                    <label class="team-checkbox">
+                        <input type="checkbox" id="memberIsLead" />
+                        <span>Set as team lead</span>
+                    </label>
+                    <div class="name-modal-actions">
+                        <button id="teamCancelBtn" type="button" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-primary">Add member</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
