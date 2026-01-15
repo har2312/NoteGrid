@@ -1,6 +1,12 @@
 import { analyzeText } from "./ai.js";
 
 const board = document.getElementById("board");
+const homeView = document.querySelector('[data-view="home"]');
+const inputView = document.querySelector('[data-view="input"]');
+const resultView = document.querySelector('[data-view="result"]');
+const noteTitleHeader = document.getElementById("noteTitleHeader");
+const resultTitle = document.getElementById("resultTitle");
+const backToHomeBtn = document.getElementById("backToHomeBtn");
 
 // Step flow elements
 const createNoteBtn = document.getElementById("createNoteBtn");
@@ -25,6 +31,22 @@ const TYPE_LABELS = {
   decision: "Decisions",
   question: "Questions"
 };
+
+function setActiveView(target) {
+  const views = document.querySelectorAll('[data-view]');
+  views.forEach((v) => {
+    const isMatch = v.getAttribute('data-view') === target;
+    v.classList.toggle('active', isMatch);
+    v.setAttribute('aria-hidden', (!isMatch).toString());
+  });
+}
+
+function setNoteTitle(name) {
+  currentNoteName = name || "Untitled note";
+  contentStepTitle.textContent = currentNoteName;
+  noteTitleHeader.textContent = currentNoteName;
+  resultTitle.textContent = currentNoteName;
+}
 
 // ============================================
 // Page/Slide Metadata Management
@@ -157,13 +179,13 @@ function updateNoteMetadata(noteElement, metadata) {
 
 // Existing AI analyze flow (reused for Step 2)
 async function runAiOnContent() {
-  board.innerHTML = "Analyzing with AI…";
+  board.replaceChildren(document.createTextNode("Analyzing with AI…"));
 
   try {
     const notes = await analyzeText(contentInput.value, selectedFiles);
     renderStructuredNotes(notes);
   } catch (e) {
-    board.innerHTML = "AI failed. Is backend running?";
+    board.replaceChildren(document.createTextNode("AI failed. Is backend running?"));
   }
 }
 
@@ -184,10 +206,11 @@ function hideNameModal() {
 }
 
 function showContentStep(name) {
-  currentNoteName = name || "Untitled note";
-  contentStepTitle.textContent = currentNoteName;
+  setNoteTitle(name || "Untitled note");
   contentStep.classList.add("show");
   contentStep.setAttribute("aria-hidden", "false");
+  board.replaceChildren();
+  setActiveView("input");
   setTimeout(() => contentInput.focus(), 50);
 }
 
@@ -220,9 +243,9 @@ nameModal.addEventListener("click", (e) => {
 
 // Continue to Step 2
 nameContinueBtn.onclick = () => {
-  const name = nameInput.value.trim();
+  const name = nameInput.value.trim() || "Untitled note";
   hideNameModal();
-  showContentStep(name || "Untitled note");
+  showContentStep(name);
 };
 
 // Step 1 keyboard handling
@@ -238,7 +261,17 @@ nameInput.addEventListener("keydown", (e) => {
 
 // Step 2 primary action -> AI analysis
 finalizeNoteBtn.onclick = () => {
+  // Move to result view immediately and show pending state
+  board.replaceChildren(document.createTextNode("Analyzing with AI…"));
+  setActiveView("result");
   runAiOnContent();
+};
+
+// Back navigation from result to home
+backToHomeBtn.onclick = () => {
+  resetContentStep();
+  board.replaceChildren();
+  setActiveView("home");
 };
 
 // Upload handling
@@ -294,71 +327,42 @@ function getOrCreateHeader(type) {
 }
 
 function renderStructuredNotes(notes) {
-    board.innerHTML = "";
+  board.replaceChildren();
 
-  const boardWidth = board.clientWidth || board.offsetWidth || 900;
-  const gap = 16;
-  const useThreeColumns = boardWidth >= 720;
-  const columns = useThreeColumns ? 3 : 1;
-
-  const columnWidth = useThreeColumns
-    ? Math.min(260, Math.max(200, (boardWidth - gap * (columns - 1)) / columns))
-    : Math.max(220, boardWidth - 16);
-
-  const leftMap = {
-    task: 0,
-    decision: useThreeColumns ? columnWidth + gap : 0,
-    question: useThreeColumns ? (columnWidth + gap) * 2 : 0
-  };
-
-  const heights = {
-    task: 0,
-    decision: 0,
-    question: 0
-  };
+  const fragment = document.createDocumentFragment();
 
   notes.forEach((n) => {
     const noteType = TYPE_ORDER.includes(n.type) ? n.type : "task";
-      const div = document.createElement("div");
+    const div = document.createElement("div");
     div.className = `sticky ${noteType}`;
     div.setAttribute("data-note-type", noteType);
-      
-    // Page metadata
-      const pageInfo = getCurrentPageInfo();
-      applyNoteMetadata(div, pageInfo);
-      
-    // Content
-      const contentWrapper = document.createElement("div");
-      contentWrapper.className = "sticky-content";
-      contentWrapper.textContent = n.text;
-      div.appendChild(contentWrapper);
-      
-    // Prepare sizing before measuring
-    div.style.width = `${columnWidth}px`;
-    div.style.left = `${leftMap[noteType]}px`;
-    div.style.top = `${heights[noteType]}px`;
-      
-      board.appendChild(div);
-      
-      // Render page/slide tag
-      renderPageTag(div);
-      
-      // Setup collapse button
-      setupCollapseButton(div);
-      
-      // Make note draggable
-      makeDraggable(div);
-      
-      // Store that this was not originally editable
-      div.setAttribute("data-original-editable", "false");
 
-    // Measure and advance the column height
-    const noteHeight = div.getBoundingClientRect().height;
-    heights[noteType] += noteHeight + gap;
+    // Page metadata
+    const pageInfo = getCurrentPageInfo();
+    applyNoteMetadata(div, pageInfo);
+
+    // Content
+    const contentWrapper = document.createElement("div");
+    contentWrapper.className = "sticky-content";
+    contentWrapper.textContent = n.text;
+    div.appendChild(contentWrapper);
+
+    // Render page/slide tag
+    renderPageTag(div);
+
+    // Setup collapse button
+    setupCollapseButton(div);
+
+    // Make note draggable
+    makeDraggable(div);
+
+    // Store that this was not originally editable
+    div.setAttribute("data-original-editable", "false");
+
+    fragment.appendChild(div);
   });
 
-  const maxHeight = Math.max(heights.task, heights.decision, heights.question);
-  board.style.minHeight = `${maxHeight + gap}px`;
+  board.appendChild(fragment);
 }
 
 // ============================================

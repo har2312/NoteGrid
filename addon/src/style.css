@@ -7,6 +7,54 @@ body {
   padding: 12px;
 }
 
+.view {
+  display: none;
+}
+
+.view.active {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.back-button {
+  width: auto;
+  padding: 8px 12px;
+  background: #f0edff;
+  color: #4527ff;
+  border: 1px solid #dcd5ff;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.back-button:hover {
+  background: #e6e0ff;
+}
+
+.note-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.note-title {
+  margin: 0;
+}
+
+.note-content-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
 h2 {
   margin-bottom: 8px;
 }
@@ -300,12 +348,13 @@ button {
 
 #board {
   margin-top: 12px;
-  position: relative;
-  min-height: 200px;
   width: 100%;
   padding: 8px;
-  /* Allow notes to be positioned absolutely within board */
-  /* Board will expand as notes are positioned */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  box-sizing: border-box;
 }
 
 .sticky {
@@ -313,12 +362,10 @@ button {
   border-radius: 8px;
   font-size: 13px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-  position: absolute;
-  min-width: 150px;
-  max-width: 250px;
-  cursor: move;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: default;
   user-select: none;
-  /* Prevent text selection during drag */
   transition: all 0.2s ease;
 }
 
