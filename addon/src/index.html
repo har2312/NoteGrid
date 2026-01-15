@@ -43,50 +43,58 @@
     </head>
     <body>
     <div id="app">
-        <h2>Smart Sticky Notes Board</h2>
+        <div class="top-nav">
+            <button class="nav-tab active">Sticky Notes</button>
+            <button class="nav-tab">Teams</button>
+            <button class="nav-tab">Discussion</button>
+        </div>
 
-        <textarea
-            id="inputText"
-            placeholder="Paste meeting notes, emails, or chat conversations here..."
-        ></textarea>
+        <section class="create-note-hero">
+            <div class="hero-icon">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="#6b4eff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M14 2V8H20" stroke="#6b4eff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M16 13H8" stroke="#6b4eff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M16 17H8" stroke="#6b4eff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M10 9H8" stroke="#6b4eff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h2 class="hero-title">Create a New Note</h2>
+            <p class="hero-subtitle">Start writing your thoughts with our rich text editor.</p>
+            <button id="createNoteBtn" class="hero-primary-btn">+ Create New Note</button>
+        </section>
 
-        <button id="analyzeBtn">Analyze & Create Notes</button>
-
-        <button id="createNoteBtn">+ Create New Note</button>
-
-        <!-- Modal for creating a new note -->
-        <div id="noteTypeModal">
-            <div id="modalContent">
-                <!-- Icon -->
-                <div class="modal-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M14 2V8H20" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M16 13H8" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M16 17H8" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M10 9H9H8" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
+        <section id="contentStep" class="content-step" aria-live="polite" aria-hidden="true">
+            <div class="content-step-inner">
+                <p class="content-eyebrow">STEP 2 · ADD CONTENT</p>
+                <h3 id="contentStepTitle" class="content-title">Untitled note</h3>
+                <p class="content-subtitle">Paste or type the note details below. You can add tasks, decisions, or questions in plain text.</p>
+                <textarea id="contentInput" class="content-textarea" placeholder="Paste or type note content here..."></textarea>
+                <div class="upload-row">
+                    <button id="uploadBtn" type="button" class="upload-btn">Add Images or Documents</button>
+                    <input id="fileInput" type="file" multiple accept="image/png,image/jpeg,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
                 </div>
-                
-                <!-- Title -->
-                <h3 class="modal-title">Create a New Note</h3>
-                
-                <!-- Description -->
-                <p class="modal-description">Start writing your thoughts with our rich text editor.</p>
-                
-                <!-- Input field -->
+                <div id="fileList" class="file-list" aria-live="polite"></div>
+                <div class="content-actions">
+                    <button id="finalizeNoteBtn" class="content-primary-btn">Create Note</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Name popup -->
+        <div id="nameModal" class="name-modal" aria-hidden="true">
+            <div class="name-modal-card">
+                <h3 class="modal-title">Name your note</h3>
                 <input 
                     type="text" 
-                    id="noteTitleInput" 
+                    id="nameInput" 
                     class="modal-input" 
-                    placeholder="Enter note title..."
+                    placeholder="Note name"
                     autofocus
                 />
-                
-                <!-- Action buttons -->
-                <div class="modal-actions">
-                    <button id="createNoteModalBtn" class="btn-primary">Create</button>
-                    <button id="closeModal" class="btn-secondary">Cancel</button>
+                <div class="name-modal-actions">
+                    <button id="nameCancelBtn" class="btn-secondary">Cancel</button>
+                    <button id="nameContinueBtn" class="btn-primary">Continue</button>
                 </div>
             </div>
         </div>

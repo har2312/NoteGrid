@@ -1,19 +1,60 @@
 import express from "express";
 import cors from "cors";
 import OpenAI from "openai";
+import multer from "multer";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB per file cap
+});
+
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-app.post("/analyze", async (req, res) => {
-  const { text } = req.body;
+app.post("/analyze", upload.array("files"), async (req, res) => {
+  const { text = "" } = req.body || {};
+  const files = req.files || [];
 
   try {
+    const userParts = [];
+    const trimmed = (text || "").trim();
+    if (trimmed) {
+      userParts.push({ type: "text", text: trimmed });
+    }
+
+    const nonImageNotes = [];
+
+    files.forEach((file) => {
+      if (file.mimetype && file.mimetype.startsWith("image/")) {
+        const base64 = file.buffer.toString("base64");
+        userParts.push({
+          type: "image_url",
+          image_url: {
+            url: `data:${file.mimetype};base64,${base64}`
+          }
+        });
+      } else {
+        nonImageNotes.push(`${file.originalname} (${file.mimetype || "unknown"})`);
+      }
+    });
+
+    if (nonImageNotes.length) {
+      userParts.push({
+        type: "text",
+        text: `Files included (not images): ${nonImageNotes.join(", ")}`
+      });
+    }
+
+    // Ensure there is at least some content
+    if (userParts.length === 0) {
+      return res.status(400).json({ error: "No text or supported images provided" });
+    }
+
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -42,7 +83,7 @@ No explanation.
         },
         {
           role: "user",
-          content: text
+          content: userParts
         }
       ],
       temperature: 0.2

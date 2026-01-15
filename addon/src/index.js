@@ -1,8 +1,30 @@
 import { analyzeText } from "./ai.js";
 
 const board = document.getElementById("board");
-const btn = document.getElementById("analyzeBtn");
-const input = document.getElementById("inputText");
+
+// Step flow elements
+const createNoteBtn = document.getElementById("createNoteBtn");
+const nameModal = document.getElementById("nameModal");
+const nameInput = document.getElementById("nameInput");
+const nameCancelBtn = document.getElementById("nameCancelBtn");
+const nameContinueBtn = document.getElementById("nameContinueBtn");
+const contentStep = document.getElementById("contentStep");
+const contentInput = document.getElementById("contentInput");
+const uploadBtn = document.getElementById("uploadBtn");
+const fileInput = document.getElementById("fileInput");
+const fileListEl = document.getElementById("fileList");
+const contentStepTitle = document.getElementById("contentStepTitle");
+const finalizeNoteBtn = document.getElementById("finalizeNoteBtn");
+
+let currentNoteName = "";
+let selectedFiles = [];
+
+const TYPE_ORDER = ["task", "decision", "question"];
+const TYPE_LABELS = {
+  task: "Tasks",
+  decision: "Decisions",
+  question: "Questions"
+};
 
 // ============================================
 // Page/Slide Metadata Management
@@ -133,36 +155,188 @@ function updateNoteMetadata(noteElement, metadata) {
  * });
  */
 
-// Existing AI analyze flow (unchanged)
-btn.onclick = async () => {
+// Existing AI analyze flow (reused for Step 2)
+async function runAiOnContent() {
   board.innerHTML = "Analyzing with AI…";
 
   try {
-    const notes = await analyzeText(input.value);
+    const notes = await analyzeText(contentInput.value, selectedFiles);
+    renderStructuredNotes(notes);
+  } catch (e) {
+    board.innerHTML = "AI failed. Is backend running?";
+  }
+}
+
+// ============================================
+// Two-step Create Note flow (name -> content)
+// ============================================
+
+function showNameModal() {
+  nameModal.classList.add("show");
+  nameModal.setAttribute("aria-hidden", "false");
+  setTimeout(() => nameInput.focus(), 80);
+}
+
+function hideNameModal() {
+  nameModal.classList.remove("show");
+  nameModal.setAttribute("aria-hidden", "true");
+  nameInput.value = "";
+}
+
+function showContentStep(name) {
+  currentNoteName = name || "Untitled note";
+  contentStepTitle.textContent = currentNoteName;
+  contentStep.classList.add("show");
+  contentStep.setAttribute("aria-hidden", "false");
+  setTimeout(() => contentInput.focus(), 50);
+}
+
+function resetContentStep() {
+  contentInput.value = "";
+  contentStepTitle.textContent = "Untitled note";
+  contentStep.classList.remove("show");
+  contentStep.setAttribute("aria-hidden", "true");
+  selectedFiles = [];
+  renderFileList();
+}
+
+// Launch Step 1
+createNoteBtn.onclick = () => {
+  resetContentStep();
+  showNameModal();
+};
+
+// Cancel Step 1
+nameCancelBtn.onclick = () => {
+  hideNameModal();
+};
+
+// Close when clicking the dimmed background
+nameModal.addEventListener("click", (e) => {
+  if (e.target === nameModal) {
+    hideNameModal();
+  }
+});
+
+// Continue to Step 2
+nameContinueBtn.onclick = () => {
+  const name = nameInput.value.trim();
+  hideNameModal();
+  showContentStep(name || "Untitled note");
+};
+
+// Step 1 keyboard handling
+nameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    nameContinueBtn.click();
+  }
+  if (e.key === "Escape") {
+    hideNameModal();
+  }
+});
+
+// Step 2 primary action -> AI analysis
+finalizeNoteBtn.onclick = () => {
+  runAiOnContent();
+};
+
+// Upload handling
+uploadBtn.onclick = () => {
+  fileInput.click();
+};
+
+fileInput.onchange = (e) => {
+  const files = Array.from(e.target.files || []);
+  if (files.length === 0) return;
+  selectedFiles = [...selectedFiles, ...files];
+  renderFileList();
+  fileInput.value = "";
+};
+
+function removeFileAt(index) {
+  selectedFiles.splice(index, 1);
+  renderFileList();
+}
+
+function renderFileList() {
+  fileListEl.innerHTML = "";
+  selectedFiles.forEach((file, idx) => {
+    const chip = document.createElement("div");
+    chip.className = "file-chip";
+    chip.textContent = file.name;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.setAttribute("aria-label", `Remove ${file.name}`);
+    removeBtn.textContent = "✕";
+    removeBtn.onclick = () => removeFileAt(idx);
+
+    chip.appendChild(removeBtn);
+    fileListEl.appendChild(chip);
+  });
+}
+
+// ============================================
+// Structured layout for sticky notes
+// ============================================
+
+function getOrCreateHeader(type) {
+  let header = board.querySelector(`[data-header="${type}"]`);
+  if (!header) {
+    header = document.createElement("div");
+    header.className = "sticky-type-header";
+    header.setAttribute("data-header", type);
+    board.appendChild(header);
+  }
+  header.textContent = TYPE_LABELS[type] || type;
+  return header;
+}
+
+function renderStructuredNotes(notes) {
     board.innerHTML = "";
 
-    notes.forEach((n, index) => {
+  const boardWidth = board.clientWidth || board.offsetWidth || 900;
+  const gap = 16;
+  const useThreeColumns = boardWidth >= 720;
+  const columns = useThreeColumns ? 3 : 1;
+
+  const columnWidth = useThreeColumns
+    ? Math.min(260, Math.max(200, (boardWidth - gap * (columns - 1)) / columns))
+    : Math.max(220, boardWidth - 16);
+
+  const leftMap = {
+    task: 0,
+    decision: useThreeColumns ? columnWidth + gap : 0,
+    question: useThreeColumns ? (columnWidth + gap) * 2 : 0
+  };
+
+  const heights = {
+    task: 0,
+    decision: 0,
+    question: 0
+  };
+
+  notes.forEach((n) => {
+    const noteType = TYPE_ORDER.includes(n.type) ? n.type : "task";
       const div = document.createElement("div");
-      div.className = `sticky ${n.type}`;
-      div.setAttribute("data-note-type", n.type);
+    div.className = `sticky ${noteType}`;
+    div.setAttribute("data-note-type", noteType);
       
-      // Get current page/slide metadata
+    // Page metadata
       const pageInfo = getCurrentPageInfo();
       applyNoteMetadata(div, pageInfo);
       
-      // Create content wrapper
+    // Content
       const contentWrapper = document.createElement("div");
       contentWrapper.className = "sticky-content";
       contentWrapper.textContent = n.text;
       div.appendChild(contentWrapper);
       
-      // Set initial position in a staggered grid pattern
-      const cols = 3;
-      const col = index % cols;
-      const row = Math.floor(index / cols);
-      const spacing = 160; // pixels between notes
-      div.style.left = `${col * spacing}px`;
-      div.style.top = `${row * spacing}px`;
+    // Prepare sizing before measuring
+    div.style.width = `${columnWidth}px`;
+    div.style.left = `${leftMap[noteType]}px`;
+    div.style.top = `${heights[noteType]}px`;
       
       board.appendChild(div);
       
@@ -177,143 +351,15 @@ btn.onclick = async () => {
       
       // Store that this was not originally editable
       div.setAttribute("data-original-editable", "false");
-    });
-  } catch (e) {
-    board.innerHTML = "AI failed. Is backend running?";
-  }
-};
 
-// ============================================
-// Create New Note functionality
-// ============================================
+    // Measure and advance the column height
+    const noteHeight = div.getBoundingClientRect().height;
+    heights[noteType] += noteHeight + gap;
+  });
 
-const createNoteBtn = document.getElementById("createNoteBtn");
-const modal = document.getElementById("noteTypeModal");
-const closeModalBtn = document.getElementById("closeModal");
-const createNoteModalBtn = document.getElementById("createNoteModalBtn");
-const noteTitleInput = document.getElementById("noteTitleInput");
-
-/**
- * Shows the create note modal
- */
-function showModal() {
-  modal.classList.add("show");
-  // Focus the input field
-  setTimeout(() => {
-    noteTitleInput.focus();
-  }, 100);
+  const maxHeight = Math.max(heights.task, heights.decision, heights.question);
+  board.style.minHeight = `${maxHeight + gap}px`;
 }
-
-/**
- * Hides the create note modal and clears input
- */
-function hideModal() {
-  modal.classList.remove("show");
-  noteTitleInput.value = "";
-}
-
-/**
- * Creates a new editable sticky note with the given title
- * @param {string} title - The note title
- */
-function createNewNote(title) {
-  // Default to "task" type for now (can be extended later)
-  const type = "task";
-  
-  // Create the sticky note element
-  const noteDiv = document.createElement("div");
-  noteDiv.className = `sticky ${type}`;
-  noteDiv.setAttribute("data-note-type", type);
-  
-  // Create content wrapper for editable content
-  const contentWrapper = document.createElement("div");
-  contentWrapper.className = "sticky-content";
-  contentWrapper.contentEditable = true;
-  
-  // Set note content to the title (or placeholder if empty)
-  contentWrapper.textContent = title.trim() || "Start writing your note...";
-  
-  noteDiv.appendChild(contentWrapper);
-  
-  // Get current page/slide metadata and apply to note
-  const pageInfo = getCurrentPageInfo();
-  applyNoteMetadata(noteDiv, pageInfo);
-  
-  // Set initial position (staggered to avoid overlap)
-  const existingNotes = board.querySelectorAll('.sticky');
-  const cols = 3;
-  const index = existingNotes.length;
-  const col = index % cols;
-  const row = Math.floor(index / cols);
-  const spacing = 160; // pixels between notes
-  noteDiv.style.left = `${col * spacing}px`;
-  noteDiv.style.top = `${row * spacing}px`;
-  
-  // Add to board
-  board.appendChild(noteDiv);
-  
-  // Render page/slide tag
-  renderPageTag(noteDiv);
-  
-  // Setup collapse button
-  setupCollapseButton(noteDiv);
-  
-  // Make note draggable
-  makeDraggable(noteDiv);
-  
-  // Store that this was originally editable
-  noteDiv.setAttribute("data-original-editable", "true");
-  
-  // Immediately focus the content for editing
-  contentWrapper.focus();
-  
-  // If no title was provided, select placeholder text
-  if (!title.trim()) {
-    const range = document.createRange();
-    range.selectNodeContents(contentWrapper);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }
-}
-
-// Event listeners for Create New Note flow
-createNoteBtn.onclick = showModal;
-
-closeModalBtn.onclick = hideModal;
-
-// Close modal when clicking outside
-modal.onclick = (e) => {
-  if (e.target === modal) {
-    hideModal();
-  }
-};
-
-// Handle Create button click
-createNoteModalBtn.onclick = () => {
-  const title = noteTitleInput.value.trim();
-  if (title) {
-    createNewNote(title);
-    hideModal();
-  } else {
-    // If no title, still create note with placeholder
-    createNewNote("");
-    hideModal();
-  }
-};
-
-// Handle Enter key in input field
-noteTitleInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    createNoteModalBtn.click();
-  }
-  
-  // Close modal on Escape
-  if (e.key === "Escape") {
-    hideModal();
-  }
-});
 
 // ============================================
 // Drag-and-Drop functionality

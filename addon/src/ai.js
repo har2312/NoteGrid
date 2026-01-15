@@ -1,10 +1,11 @@
-export async function analyzeText(text) {
+export async function analyzeText(text, files = []) {
+  const formData = new FormData();
+  formData.append("text", text || "");
+  (files || []).forEach((file) => formData.append("files", file));
+
   const res = await fetch("http://localhost:3001/analyze", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ text })
+    body: formData
   });
 
   if (!res.ok) {
