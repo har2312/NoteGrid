@@ -45,12 +45,63 @@
     <body>
     <div id="app">
         <div class="top-nav">
-            <!-- <button id="stickyTabBtn" class="nav-tab">Notes</button> -->
-            <button id="teamTabBtn" class="nav-tab">Team</button>
+            <!-- <button id="stickyTabBtn" class="nav-tab">Sticky Notes</button> -->
+            <button id="teamTabBtn" class="nav-tab">Teams</button>
             <button id="discussionTabBtn" class="nav-tab">Discussion</button>
+            <button id="tasksTabBtn" class="nav-tab active">Tasks</button>
+        </div>
+        <div id="tasks-view" class="view active" data-view="tasks" aria-hidden="false">
+            <header class="tasks-header">
+                <div>
+                    <!-- <p class="tasks-eyebrow">Live Trello sync</p> -->
+                    <h2 class="tasks-title">My Task Dashboard</h2>
+                    <!-- <p class="tasks-subtitle">Watch Trello cards update in real time inside Adobe Express.</p> -->
+                </div>
+                <button id="refreshTasksBtn" class="tasks-refresh-btn" type="button">Refresh</button>
+            </header>
+
+            <section class="tasks-status" aria-live="polite">
+                <div id="tasksLoadingState" class="tasks-loading">Loading tasks from Trello…</div>
+                <div id="tasksErrorState" class="tasks-error" hidden></div>
+            </section>
+
+            <section class="tasks-section">
+                <div class="tasks-section-header">
+                    <div>
+                        <h3>Tasks Assigned To Me</h3>
+                        <!-- <p>Cards where you're listed as a member and still in progress.</p> -->
+                    </div>
+                </div>
+                <div id="tasksAssignedToMe" class="tasks-list" aria-live="polite"></div>
+            </section>
+
+            <section class="tasks-section">
+                <div class="tasks-section-header">
+                    <div>
+                        <h3>Tasks Assigned By Me</h3>
+                        <!-- <p>Cards you created or delegated, organized by completion state.</p> -->
+                    </div>
+                </div>
+                <div class="tasks-grid">
+                    <div class="tasks-subsection">
+                        <div class="tasks-subsection-header">
+                            <h4>In Progress</h4>
+                            <span class="tasks-subsection-pill">Active</span>
+                        </div>
+                        <div id="tasksAssignedByMeInProgress" class="tasks-list" aria-live="polite"></div>
+                    </div>
+                    <div class="tasks-subsection">
+                        <div class="tasks-subsection-header">
+                            <h4>Completed</h4>
+                            <span class="tasks-subsection-pill is-muted">Done</span>
+                        </div>
+                        <div id="tasksAssignedByMeCompleted" class="tasks-list" aria-live="polite"></div>
+                    </div>
+                </div>
+            </section>
         </div>
 
-        <div id="home-view" class="view active" data-view="home" aria-hidden="false">
+        <div id="home-view" class="view" data-view="home" aria-hidden="true">
             <section class="create-note-hero">
                 <div class="hero-icon">
                     <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

@@ -1,5 +1,6 @@
 
 import { analyzeText } from "./ai.js";
+import { fetchCurrentMember, fetchMemberCards } from "./trello.js";
 
 // --------------------------------------------
 // Canvas element attachment (Document Sandbox)
@@ -60,6 +61,14 @@ const backToHomeBtn = document.getElementById("backToHomeBtn");
 const stickyTabBtn = document.getElementById("stickyTabBtn");
 const teamTabBtn = document.getElementById("teamTabBtn");
 const discussionTabBtn = document.getElementById("discussionTabBtn");
+const tasksTabBtn = document.getElementById("tasksTabBtn");
+const tasksView = document.querySelector('[data-view="tasks"]');
+const refreshTasksBtn = document.getElementById("refreshTasksBtn");
+const tasksLoadingState = document.getElementById("tasksLoadingState");
+const tasksErrorState = document.getElementById("tasksErrorState");
+const tasksAssignedToMeList = document.getElementById("tasksAssignedToMe");
+const tasksAssignedByMeInProgressList = document.getElementById("tasksAssignedByMeInProgress");
+const tasksAssignedByMeCompletedList = document.getElementById("tasksAssignedByMeCompleted");
 const savedNotesList = document.getElementById("savedNotesList");
 const stickyBackBtn = document.getElementById("stickyBackBtn");
 const teamList = document.getElementById("teamList");
@@ -108,6 +117,20 @@ const TYPE_LABELS = {
   task: "Tasks",
   decision: "Decisions",
   question: "Questions"
+};
+
+const TASKS_CACHE_TTL = 1000 * 60 * 5; // 5 minutes
+const MAX_TASKS_PER_SECTION = 30;
+const tasksState = {
+  loading: false,
+  lastFetchedAt: 0,
+  assignedToMe: [],
+  assignedByMe: {
+    inProgress: [],
+    completed: []
+  },
+  currentUser: null,
+  error: ""
 };
 
 const teamStore = {
@@ -260,6 +283,243 @@ function goBack() {
     previousView = viewHistory.length > 1 ? viewHistory[viewHistory.length - 2] : null;
     updateViewClasses();
     updateBackVisibility();
+  }
+}
+
+function setTasksLoading(isLoading) {
+  if (!tasksLoadingState) return;
+  tasksLoadingState.hidden = !isLoading;
+}
+
+function setTasksError(message) {
+  if (!tasksErrorState) return;
+  if (message) {
+    tasksErrorState.textContent = message;
+    tasksErrorState.hidden = false;
+  } else {
+    tasksErrorState.textContent = "";
+    tasksErrorState.hidden = true;
+  }
+}
+
+function formatRelativeTime(value) {
+  if (!value) return "Just now";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Just now";
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString();
+}
+
+function truncateText(text = "", maxLength = 160) {
+  const safe = text.trim();
+  if (!safe) return "";
+  if (safe.length <= maxLength) return safe;
+  return `${safe.slice(0, maxLength - 1)}…`;
+}
+
+function getInitials(input = "") {
+  const parts = input.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  const initials = parts.slice(0, 2).map((part) => part[0]).join("");
+  return initials.toUpperCase();
+}
+
+function createAvatarElement(member = {}, currentUserId) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "task-avatar";
+
+  const displayName = member?.fullName || member?.username || "Unknown";
+  const isSelf = member?.id && member.id === currentUserId;
+  wrapper.title = isSelf ? `${displayName} (You)` : displayName;
+
+  const avatarUrl = member?.avatarUrl;
+  if (avatarUrl) {
+    const img = document.createElement("img");
+    img.alt = displayName;
+    img.src = avatarUrl.endsWith(".png") ? avatarUrl : `${avatarUrl}/50.png`;
+    wrapper.appendChild(img);
+  } else {
+    wrapper.classList.add("task-avatar--initials");
+    wrapper.textContent = member?.initials?.toUpperCase() || getInitials(displayName);
+  }
+
+  return wrapper;
+}
+
+function createTaskCard(card, statusConfig, currentUserId) {
+  const statusLabel = statusConfig?.statusLabel || "Task";
+  const statusTone = statusConfig?.statusTone || "todo";
+
+  const cardEl = document.createElement("article");
+  cardEl.className = "task-card";
+
+  const header = document.createElement("div");
+  header.className = "task-card-header";
+
+  const title = document.createElement("h3");
+  title.className = "task-card-title";
+  title.textContent = card?.name?.trim() || "Untitled card";
+  header.appendChild(title);
+
+  const badge = document.createElement("span");
+  badge.className = `task-badge task-badge--${statusTone}`;
+  badge.textContent = statusLabel;
+  header.appendChild(badge);
+
+  cardEl.appendChild(header);
+
+  const descText = truncateText(card?.desc || "");
+  if (descText) {
+    const desc = document.createElement("p");
+    desc.className = "task-card-desc";
+    desc.textContent = descText;
+    cardEl.appendChild(desc);
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "task-card-meta";
+  const updatedLabel = document.createElement("span");
+  updatedLabel.textContent = `Updated ${formatRelativeTime(card?.dateLastActivity)}`;
+  meta.appendChild(updatedLabel);
+  if (card?.memberCreator?.fullName) {
+    const creatorLabel = document.createElement("span");
+    creatorLabel.textContent = `Creator: ${card.memberCreator.fullName}`;
+    meta.appendChild(creatorLabel);
+  }
+  cardEl.appendChild(meta);
+
+  const avatarsWrap = document.createElement("div");
+  avatarsWrap.className = "task-avatars";
+  const members = Array.isArray(card?.members) ? card.members : [];
+  if (members.length) {
+    members.slice(0, 4).forEach((member) => {
+      avatarsWrap.appendChild(createAvatarElement(member, currentUserId));
+    });
+    if (members.length > 4) {
+      const overflow = document.createElement("span");
+      overflow.className = "task-pill";
+      overflow.textContent = `+${members.length - 4}`;
+      avatarsWrap.appendChild(overflow);
+    }
+  } else {
+    const unassigned = document.createElement("span");
+    unassigned.className = "task-pill";
+    unassigned.textContent = "Unassigned";
+    avatarsWrap.appendChild(unassigned);
+  }
+  cardEl.appendChild(avatarsWrap);
+
+  return cardEl;
+}
+
+function renderTaskList(container, tasks, { emptyMessage, statusLabel, statusTone }) {
+  if (!container) return;
+  container.replaceChildren();
+  const list = Array.isArray(tasks) ? tasks : [];
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "tasks-empty";
+    empty.textContent = emptyMessage || "No tasks found";
+    container.appendChild(empty);
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  list.slice(0, MAX_TASKS_PER_SECTION).forEach((card) => {
+    fragment.appendChild(
+      createTaskCard(card, { statusLabel, statusTone }, tasksState.currentUser?.id || null)
+    );
+  });
+  container.appendChild(fragment);
+}
+
+function renderTasksBoard() {
+  renderTaskList(tasksAssignedToMeList, tasksState.assignedToMe, {
+    emptyMessage: "No tasks found — you're all caught up!",
+    statusLabel: "To Do",
+    statusTone: "todo"
+  });
+
+  renderTaskList(tasksAssignedByMeInProgressList, tasksState.assignedByMe.inProgress, {
+    emptyMessage: "No active assignments right now.",
+    statusLabel: "In Progress",
+    statusTone: "in-progress"
+  });
+
+  renderTaskList(tasksAssignedByMeCompletedList, tasksState.assignedByMe.completed, {
+    emptyMessage: "No completed tasks yet.",
+    statusLabel: "Done",
+    statusTone: "done"
+  });
+}
+
+function isCardAssignedByUser(card, currentUserId) {
+  if (!card || !currentUserId) return false;
+  if (card.idMemberCreator === currentUserId) return true;
+  const memberIds = Array.isArray(card.idMembers) ? card.idMembers : [];
+  return memberIds.includes(currentUserId) && memberIds.some((id) => id !== currentUserId);
+}
+
+function sortCardsByActivity(list) {
+  return [...list].sort((a, b) => {
+    const aTime = new Date(a?.dateLastActivity || 0).getTime();
+    const bTime = new Date(b?.dateLastActivity || 0).getTime();
+    return bTime - aTime;
+  });
+}
+
+async function loadTasks(forceRefresh = false) {
+  if (!tasksView) return;
+  if (tasksState.loading) return;
+  const now = Date.now();
+  const isFresh = now - tasksState.lastFetchedAt < TASKS_CACHE_TTL;
+  if (!forceRefresh && tasksState.lastFetchedAt && isFresh) {
+    renderTasksBoard();
+    return;
+  }
+
+  tasksState.loading = true;
+  setTasksError("");
+  setTasksLoading(true);
+
+  try {
+    const [currentUser, cards] = await Promise.all([
+      fetchCurrentMember(),
+      fetchMemberCards()
+    ]);
+
+    tasksState.currentUser = currentUser;
+
+    const assignedToMe = cards.filter((card) => {
+      const members = Array.isArray(card?.idMembers) ? card.idMembers : [];
+      return members.includes(currentUser.id) && !card.closed;
+    });
+
+    const assignedByMeAll = cards.filter((card) => isCardAssignedByUser(card, currentUser.id));
+
+    tasksState.assignedToMe = sortCardsByActivity(assignedToMe);
+    tasksState.assignedByMe = {
+      inProgress: sortCardsByActivity(assignedByMeAll.filter((card) => !card.closed)),
+      completed: sortCardsByActivity(assignedByMeAll.filter((card) => card.closed))
+    };
+    tasksState.lastFetchedAt = now;
+    renderTasksBoard();
+  } catch (error) {
+    console.error("Failed to load Trello tasks", error);
+    tasksState.error = error.message || "Unable to load Trello tasks.";
+    setTasksError(tasksState.error);
+    tasksState.assignedToMe = [];
+    tasksState.assignedByMe = { inProgress: [], completed: [] };
+    renderTasksBoard();
+  } finally {
+    tasksState.loading = false;
+    setTasksLoading(false);
   }
 }
 
@@ -871,6 +1131,25 @@ if (teamTabBtn) {
     renderTeamList();
     navigateTo("team");
   });
+}
+
+if (tasksTabBtn) {
+  tasksTabBtn.addEventListener("click", () => {
+    setActiveNav("tasksTabBtn");
+    navigateTo("tasks");
+    loadTasks();
+  });
+}
+
+if (refreshTasksBtn) {
+  refreshTasksBtn.addEventListener("click", () => {
+    loadTasks(true);
+  });
+}
+
+if (tasksView) {
+  setActiveNav("tasksTabBtn");
+  loadTasks(true);
 }
 
 // Discussion tab handler is now at the bottom of the file
