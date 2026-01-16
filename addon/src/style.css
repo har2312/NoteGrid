@@ -563,13 +563,15 @@ h2 {
 
 .content-textarea {
   width: 100%;
-  min-height: 140px;
-  padding: 12px;
+  min-height: 30 px;        /* ↓ was 140px */
+  padding: 8px 12px;      /* ↓ tighter vertical padding */
   border: 1px solid #e0e0e0;
   border-radius: 10px;
-  resize: vertical;
-  font-size: 13px;
+  resize: none;           /* chat input should not resize */
+  font-size: 14px;        /* slightly more readable */
+  line-height: 1.35;      /* fixes cursor vertical alignment */
   box-sizing: border-box;
+
 }
 
 .content-actions {
@@ -1512,4 +1514,322 @@ button {
   font-size: 13px;
   color: #999;
   line-height: 1.5;
+}
+
+/* =====================================================
+   DISCUSSION TAB POLISH (SCOPED)
+   ===================================================== */
+.discussion-root {
+  background: #f6f7fb;
+}
+
+.discussion-root .discussion-content {
+  background: linear-gradient(180deg, rgba(246, 247, 251, 0.9), #fefefe);
+}
+.discussion-root .composer-bubbles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.discussion-root .composer-reference {
+  border: 1px solid rgba(69, 39, 255, 0.15);
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 6px 12px;
+  min-height: 38px;
+  line-height: 1.3;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.discussion-root .composer-input {
+  position: relative;
+  border: 1px solid #dfe1f5;
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 6px 12px;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.discussion-root .discussion-header-sticky {
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid rgba(23, 27, 48, 0.06);
+}
+
+.discussion-root .discussion-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.discussion-root .discussion-helper-text {
+  margin: 0;
+  font-size: 12px;
+  color: #7c8098;
+  line-height: 1.35;
+}
+
+.discussion-root .messages-feed {
+  padding: 20px 20px 12px;
+  gap: 8px;
+  background: transparent;
+}
+
+.discussion-root .message {
+  border-radius: 16px;
+  border: 1px solid rgba(30, 33, 56, 0.08);
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  padding: 12px 16px;
+  gap: 4px;
+}
+
+.discussion-root .message.me {
+  background: linear-gradient(180deg, #f7f4ff 0%, #ffffff 100%);
+  border-color: rgba(69, 39, 255, 0.25);
+}
+
+.discussion-root .message-header {
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: #7a7e93;
+}
+
+.discussion-root .message-author {
+  color: #2e314a;
+  font-weight: 600;
+}
+
+.discussion-root .message.me .message-author {
+  color: #4d3fe0;
+}
+
+.discussion-root .message-time {
+  font-size: 11px;
+  color: #a0a3ba;
+}
+
+.discussion-root .message-text {
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1f1f24;
+}
+
+.discussion-root .message-attachments {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  align-items: baseline;
+}
+
+.discussion-root .node-id-link {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(69, 39, 255, 0.25);
+  background: rgba(69, 39, 255, 0.08);
+  color: #363a63;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 1.2;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.discussion-root .node-id-link:hover {
+  background: rgba(69, 39, 255, 0.16);
+  border-color: rgba(69, 39, 255, 0.4);
+  color: #2b2e4d;
+}
+
+.discussion-root .node-id-link:focus-visible {
+  outline: 2px solid rgba(69, 39, 255, 0.35);
+  outline-offset: 2px;
+}
+
+.discussion-root .node-id-link[disabled],
+.discussion-root .node-id-link[aria-disabled="true"],
+.discussion-root .node-id-link.is-inactive {
+  border-style: dashed;
+  border-color: rgba(121, 124, 146, 0.7);
+  background: rgba(146, 149, 174, 0.18);
+  color: #8d90a8;
+  cursor: default;
+  pointer-events: none;
+}
+
+.discussion-root .mention {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.discussion-root .mention.user {
+  background: rgba(32, 129, 226, 0.15);
+  color: #0b63c7;
+}
+
+.discussion-root .mention.lead {
+  background: rgba(241, 114, 155, 0.18);
+  color: #b23663;
+}
+
+.discussion-root .mention.everyone {
+  background: rgba(78, 63, 255, 0.18);
+  color: #4b3dff;
+}
+
+.discussion-root .discussion-input-area {
+  padding: 12px 18px 18px;
+  gap: 10px;
+  background: #f6f7fb;
+  border-top: 1px solid #ececf5;
+}
+
+.discussion-root .input-wrapper {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.discussion-root .input-wrapper:focus-within {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.discussion-root .textarea-shell {
+  border-radius: 16px;
+}
+
+.discussion-root .textarea-shell.has-selection .discussion-textarea {
+  padding-top: 16px;
+}
+
+.discussion-root .composer-attachments {
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.discussion-root .composer-attachment {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(69, 39, 255, 0.2);
+  background: #f7f7ff;
+  box-shadow: 0 6px 18px rgba(33, 34, 68, 0.08);
+}
+
+.discussion-root .composer-attachment-badge {
+  font-weight: 600;
+  font-size: 12px;
+  color: #333555;
+}
+
+.discussion-root .remove-attachment-btn {
+  background: transparent;
+  color: #8b8ea6;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.discussion-root .remove-attachment-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #3c3f57;
+}
+
+.discussion-root .canvas-attachment-hint {
+  font-size: 11px;
+  color: #7c7f99;
+}
+
+.discussion-root .canvas-attachment-dismiss-btn {
+  background: rgba(58, 61, 89, 0.08);
+  color: #2c2f47;
+}
+
+.discussion-root .canvas-attachment-dismiss-btn:hover {
+  background: rgba(58, 61, 89, 0.14);
+}
+
+.discussion-root .canvas-attachment-status {
+  margin: 0;
+  font-size: 12px;
+  color: #8a8dab;
+}
+
+.discussion-root .discussion-textarea {
+  min-height: 78px;
+  max-height: 200px;
+  padding: 16px 12px 8px;
+  border: none;
+  background: transparent;
+  color: #1f1f24;
+}
+
+.discussion-root .discussion-textarea:focus {
+  box-shadow: none;
+}
+
+.discussion-root .discussion-textarea::placeholder {
+  color: #b3b7c9;
+}
+
+.discussion-root .discussion-input-overlay {
+  display: none;
+}
+
+.discussion-root .input-placeholder {
+  color: #9da0b5;
+}
+
+.discussion-root .mention-dropdown {
+  left: 12px;
+  right: 12px;
+  margin-bottom: 8px;
+  border: 1px solid #e0e1f0;
+  border-radius: 14px;
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.12);
+}
+
+.discussion-root .mention-option {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f3f3fb;
+}
+
+.discussion-root .mention-option:hover,
+.discussion-root .mention-option.selected {
+  background: rgba(69, 39, 255, 0.08);
+}
+
+.discussion-root .mention-option-role {
+  color: #8c8fa5;
+}
+
+.discussion-root .send-btn {
+  border-radius: 999px;
+  padding: 0 24px;
+  height: 40px;
+  box-shadow: 0 20px 40px rgba(69, 39, 255, 0.25);
+}
+
+.discussion-root .send-btn:disabled {
+  box-shadow: none;
 }
