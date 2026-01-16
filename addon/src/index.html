@@ -121,6 +121,46 @@
             <div class="team-list-scroll">
                 <div id="teamList" class="team-list-compact" aria-live="polite"></div>
             </div>
+
+            <!-- Team Modals (only visible in team view) -->
+            <div id="teamModal" class="name-modal" aria-hidden="true">
+                <div class="name-modal-card">
+                    <h3 class="modal-title">Add team member</h3>
+                    <form id="teamForm" class="team-form">
+                        <label class="team-field">
+                            <span>Name</span>
+                            <input type="text" id="memberName" required placeholder="Full name" />
+                        </label>
+                        <label class="team-field">
+                            <span>Email</span>
+                            <input type="email" id="memberEmail" required placeholder="name@company.com" />
+                        </label>
+                        <label class="team-field">
+                            <span>Role</span>
+                            <input type="text" id="memberRole" required placeholder="Product Manager" />
+                        </label>
+                        <label class="team-checkbox">
+                            <input type="checkbox" id="memberIsLead" />
+                            <span>Set as team lead</span>
+                        </label>
+                        <div class="name-modal-actions">
+                            <button id="teamCancelBtn" type="button" class="btn-secondary">Cancel</button>
+                            <button type="submit" class="btn-primary">Add member</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="confirmModal" class="name-modal" aria-hidden="true">
+                <div class="name-modal-card">
+                    <h3 class="modal-title">Remove Team Member</h3>
+                    <p id="confirmMessage" class="confirm-message"></p>
+                    <div class="name-modal-actions">
+                        <button id="confirmCancelBtn" type="button" class="btn-secondary">Cancel</button>
+                        <button id="confirmOkBtn" type="button" class="btn-danger">Remove</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div id="discussion-view" class="view" data-view="discussion" aria-hidden="true">
@@ -149,34 +189,6 @@
                     <button id="nameCancelBtn" class="btn-secondary">Cancel</button>
                     <button id="nameContinueBtn" class="btn-primary">Continue</button>
                 </div>
-            </div>
-        </div>
-
-        <div id="teamModal" class="name-modal" aria-hidden="true">
-            <div class="name-modal-card">
-                <h3 class="modal-title">Add team member</h3>
-                <form id="teamForm" class="team-form">
-                    <label class="team-field">
-                        <span>Name</span>
-                        <input type="text" id="memberName" required placeholder="Full name" />
-                    </label>
-                    <label class="team-field">
-                        <span>Email</span>
-                        <input type="email" id="memberEmail" required placeholder="name@company.com" />
-                    </label>
-                    <label class="team-field">
-                        <span>Role</span>
-                        <input type="text" id="memberRole" required placeholder="Product Manager" />
-                    </label>
-                    <label class="team-checkbox">
-                        <input type="checkbox" id="memberIsLead" />
-                        <span>Set as team lead</span>
-                    </label>
-                    <div class="name-modal-actions">
-                        <button id="teamCancelBtn" type="button" class="btn-secondary">Cancel</button>
-                        <button type="submit" class="btn-primary">Add member</button>
-                    </div>
-                </form>
             </div>
         </div>
     </div>

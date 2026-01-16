@@ -304,6 +304,14 @@ body {
 .team-action {
   flex-shrink: 0;
   margin-left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.team-action-group {
+  display: flex;
+  align-items: center;
 }
 
 .lead-label {
@@ -329,6 +337,35 @@ body {
 
 .make-lead-action:hover {
   color: #4527ff;
+}
+
+.remove-member-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 18px;
+  line-height: 1;
+  color: #999;
+  cursor: pointer;
+  transition: all 0.12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  pointer-events: auto;
+}
+
+.remove-member-btn:hover {
+  background: #fff0f0;
+  border-color: #ffcccc;
+  color: #e53e3e;
+}
+
+.remove-member-btn:active {
+  transform: scale(0.95);
 }
 
 /* EMPTY STATE */
@@ -845,7 +882,8 @@ button {
 
 /* Shared modal container */
 #nameModal,
-#teamModal {
+#teamModal,
+#confirmModal {
   display: none;
   position: fixed;
   top: 0;
@@ -859,8 +897,15 @@ button {
 }
 
 #nameModal.show,
-#teamModal.show {
+#teamModal.show,
+#confirmModal.show {
   display: flex;
+}
+
+/* Confirm modal has higher z-index */
+#confirmModal {
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .name-modal-card {
@@ -949,4 +994,25 @@ button {
 
 .btn-secondary:active {
   background: #ebebeb;
+}
+.btn-danger {
+  background: #e53e3e;
+  color: #ffffff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-danger:hover {
+  background: #c53030;
+}
+
+.confirm-message {
+  margin: 12px 0;
+  font-size: 14px;
+  color: #555;
+  line-height: 1.5;
 }

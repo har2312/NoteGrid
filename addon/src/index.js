@@ -25,6 +25,13 @@ const memberRoleInput = document.getElementById("memberRole");
 const memberIsLeadInput = document.getElementById("memberIsLead");
 const teamCancelBtn = document.getElementById("teamCancelBtn");
 
+// Confirm modal elements
+const confirmModal = document.getElementById("confirmModal");
+const confirmMessage = document.getElementById("confirmMessage");
+const confirmOkBtn = document.getElementById("confirmOkBtn");
+const confirmCancelBtn = document.getElementById("confirmCancelBtn");
+let confirmCallback = null;
+
 // Step flow elements
 const createNoteBtn = document.getElementById("createNoteBtn");
 const nameModal = document.getElementById("nameModal");
@@ -102,6 +109,10 @@ const teamStore = {
     this.members = this.members.map((m) => ({ ...m, isLead: m.id === id }));
     this.persist();
   },
+  removeMember(id) {
+    this.members = this.members.filter((m) => m.id !== id);
+    this.persist();
+  },
   clearIfCorrupt() {
     if (!Array.isArray(this.members)) {
       this.members = [];
@@ -158,6 +169,14 @@ function navigateTo(target, options = {}) {
   const prev = currentView;
   previousView = prev;
   currentView = target;
+
+  // Close any open modals when navigating away from team view
+  if (prev === "team" && target !== "team") {
+    const teamModal = document.getElementById("teamModal");
+    const confirmModal = document.getElementById("confirmModal");
+    if (teamModal) teamModal.classList.remove("show");
+    if (confirmModal) confirmModal.classList.remove("show");
+  }
 
   // Track entry for result view so back knows where to go
   if (target === "result") {
@@ -277,6 +296,31 @@ function closeTeamModal() {
   }
 }
 
+function showConfirmDialog(message, onConfirm) {
+  if (!confirmModal) return;
+  
+  // Close any other open modals first
+  if (teamModal && teamModal.classList.contains("show")) {
+    closeTeamModal();
+  }
+  if (nameModal && nameModal.classList.contains("show")) {
+    nameModal.classList.remove("show");
+    nameModal.setAttribute("aria-hidden", "true");
+  }
+  
+  confirmMessage.textContent = message;
+  confirmCallback = onConfirm;
+  confirmModal.classList.add("show");
+  confirmModal.setAttribute("aria-hidden", "false");
+}
+
+function closeConfirmDialog() {
+  if (!confirmModal) return;
+  confirmModal.classList.remove("show");
+  confirmModal.setAttribute("aria-hidden", "true");
+  confirmCallback = null;
+}
+
 function renderTeamList() {
   console.log("Rendering team list");
   if (!teamList) {
@@ -317,15 +361,18 @@ function renderTeamList() {
     info.appendChild(nameEl);
     info.appendChild(emailEl);
 
-    // Action area (Lead label OR Make Lead action)
+    // Action area (Lead label OR Make Lead action + Remove button)
     const action = document.createElement("div");
     action.className = "team-action";
+
+    const actionGroup = document.createElement("div");
+    actionGroup.className = "team-action-group";
 
     if (member.isLead) {
       const leadLabel = document.createElement("span");
       leadLabel.className = "lead-label";
       leadLabel.textContent = "Lead";
-      action.appendChild(leadLabel);
+      actionGroup.appendChild(leadLabel);
     } else {
       const makeLeadBtn = document.createElement("button");
       makeLeadBtn.type = "button";
@@ -335,8 +382,32 @@ function renderTeamList() {
         teamStore.setLead(member.id);
         renderTeamList();
       };
-      action.appendChild(makeLeadBtn);
+      actionGroup.appendChild(makeLeadBtn);
     }
+
+    // Remove button (always shown)
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "remove-member-btn";
+    removeBtn.textContent = "×";
+    removeBtn.title = "Remove member";
+    removeBtn.setAttribute("aria-label", `Remove ${member.name}`);
+    removeBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log("Remove button clicked for:", member.name);
+      
+      showConfirmDialog(`Remove ${member.name} from the team?`, () => {
+        console.log("Removing member:", member.id);
+        teamStore.removeMember(member.id);
+        console.log("Members after removal:", teamStore.getMembers());
+        renderTeamList();
+      });
+    };
+
+    action.appendChild(actionGroup);
+    action.appendChild(removeBtn);
+    console.log("Remove button added for:", member.name);
 
     row.appendChild(info);
     row.appendChild(action);
@@ -612,6 +683,31 @@ if (teamModal) {
   });
 }
 
+// Confirm modal handlers
+if (confirmOkBtn) {
+  confirmOkBtn.onclick = () => {
+    if (confirmCallback) {
+      confirmCallback();
+    }
+    closeConfirmDialog();
+  };
+}
+
+if (confirmCancelBtn) {
+  confirmCancelBtn.onclick = () => {
+    closeConfirmDialog();
+  };
+}
+
+// Close confirm modal when clicking backdrop
+if (confirmModal) {
+  confirmModal.addEventListener("click", (e) => {
+    if (e.target === confirmModal) {
+      closeConfirmDialog();
+    }
+  });
+}
+
 // Team form submit - single handler
 if (teamForm) {
   console.log("Attaching submit event listener to team form");
@@ -709,7 +805,7 @@ finalizeNoteBtn.onclick = () => {
 backToHomeBtn.onclick = () => {
   resetContentStep();
   board.replaceChildren();
-  navigateTo("home");
+  goBack();
 };
 
 // Tab navigation
