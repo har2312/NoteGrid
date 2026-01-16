@@ -164,14 +164,37 @@
         </div>
 
         <div id="discussion-view" class="view" data-view="discussion" aria-hidden="true">
-            <header class="team-header">
-                <div>
-                    <p class="content-eyebrow">DISCUSSION</p>
-                    <h2 class="note-title">Discussion</h2>
-                    <p class="content-subtitle">Mentions will use team members here later.</p>
+            <header class="discussion-header-sticky">
+                <div class="header-row-1">
+                    <button id="discussionBackBtn" class="icon-back-btn">←</button>
                 </div>
+                <h2 class="header-title">Discussion</h2>
+                <p class="header-subtitle">Collaborate with your team using @mentions</p>
             </header>
-            <p class="content-subtitle">Coming soon: discuss and @mention teammates from the shared team list.</p>
+            
+            <div class="discussion-content">
+                <div id="messagesFeed" class="messages-feed" aria-live="polite"></div>
+                
+                <div class="discussion-input-area">
+                    <div class="input-wrapper">
+                        <div class="textarea-shell">
+                            <div 
+                                id="discussionInputOverlay" 
+                                class="discussion-input-overlay" 
+                                aria-hidden="true"
+                            ></div>
+                            <textarea 
+                                id="discussionInput" 
+                                class="discussion-textarea" 
+                                placeholder="Type a message... Use @ to mention"
+                                rows="3"
+                            ></textarea>
+                        </div>
+                        <div id="mentionDropdown" class="mention-dropdown" aria-hidden="true"></div>
+                    </div>
+                    <button id="sendMessageBtn" class="send-btn">Send</button>
+                </div>
+            </div>
         </div>
 
         <!-- Name popup -->

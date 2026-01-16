@@ -44,12 +44,20 @@ body {
   overflow-y: auto;
 }
 
-/* Team and discussion views handle their own overflow */
-#team-view.active,
-#discussion-view.active {
+/* Team view handles its own overflow */
+#team-view.active {
   padding: 0;
   gap: 0;
   overflow: hidden;
+}
+
+/* Discussion view uses custom flex layout */
+#discussion-view.active {
+  padding: 0;
+  gap: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .saved-notes-panel {
@@ -1014,5 +1022,317 @@ button {
   margin: 12px 0;
   font-size: 14px;
   color: #555;
+  line-height: 1.5;
+}
+/* ============================================
+   DISCUSSION VIEW STYLES
+   ============================================ */
+
+/* Discussion view layout */
+#discussion-view.active {
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Header - Sticky at top */
+.discussion-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 12px 16px 14px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+
+/* Discussion content area - scrollable */
+.discussion-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Messages feed - scrollable area */
+.messages-feed {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 16px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+/* Individual message */
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: #f8f8fa;
+  border-radius: 10px;
+  border: 1px solid #e8e8e8;
+}
+
+.message.me {
+  background: #f0edff;
+  border-color: #dcd5ff;
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.message-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4527ff;
+}
+
+.message-time {
+  font-size: 11px;
+  color: #999;
+}
+
+.message-text {
+  font-size: 14px;
+  color: #1a1a1a;
+  line-height: 1.5;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+/* Mention pill styles */
+.mention {
+  display: inline;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.mention.user {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.mention.lead {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.mention.everyone {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+/* Input area - fixed at bottom */
+.discussion-input-area {
+  position: sticky;
+  bottom: 0;
+  flex-shrink: 0;
+  min-height: 130px;
+  padding: 16px;
+  background: #ffffff;
+  border-top: 1px solid #e6e6e6;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+  z-index: 5;
+  box-sizing: border-box;
+}
+
+.input-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.textarea-shell {
+  position: relative;
+  width: 100%;
+  min-height: 0;
+}
+
+.discussion-textarea {
+  width: 100%;
+  height: auto;
+  min-height: 120px;
+  max-height: 200px;
+  padding: 16px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
+  resize: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+  background: transparent;
+  color: transparent;
+  caret-color: #4527ff;
+  overflow-y: auto;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.discussion-textarea:focus {
+  outline: none;
+  border-color: #4527ff;
+  box-shadow: 0 0 0 3px rgba(69, 39, 255, 0.08);
+}
+
+.discussion-textarea::placeholder {
+  color: transparent;
+}
+
+#discussionInput {
+  flex: 1;
+}
+
+.discussion-input-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px;
+  pointer-events: none;
+  color: #1a1a1a;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 10px;
+  z-index: 1;
+  background: #fafafa;
+}
+
+.input-placeholder {
+  color: #999;
+}
+
+/* Mention dropdown */
+.mention-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 6px;
+  background: #ffffff;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 100;
+  display: none;
+}
+
+.mention-dropdown[aria-hidden="false"] {
+  display: block;
+}
+
+.mention-option {
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: background 0.12s;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.mention-option:last-child {
+  border-bottom: none;
+}
+
+.mention-option:hover,
+.mention-option.selected {
+  background: #f0edff;
+}
+
+.mention-option-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  line-height: 1.3;
+}
+
+.mention-option-role {
+  font-size: 12px;
+  color: #888;
+  margin-top: 3px;
+  line-height: 1.3;
+}
+
+.mention-option-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: #4527ff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 6px;
+}
+
+/* Send button */
+.send-btn {
+  flex-shrink: 0;
+  padding: 0 18px;
+  background: #4527ff;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  height: 42px;
+  align-self: flex-end;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.send-btn:hover {
+  background: #3618e6;
+  transform: translateY(-1px);
+}
+
+.send-btn:active {
+  background: #2a10c7;
+  transform: translateY(0);
+}
+
+.send-btn:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Empty state for discussion */
+.discussion-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  text-align: center;
+}
+
+.discussion-empty p {
+  margin: 0;
+  font-size: 13px;
+  color: #999;
   line-height: 1.5;
 }

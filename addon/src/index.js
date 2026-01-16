@@ -825,12 +825,7 @@ if (teamTabBtn) {
   });
 }
 
-if (discussionTabBtn) {
-  discussionTabBtn.addEventListener("click", () => {
-    setActiveNav("discussionTabBtn");
-    navigateTo("discussion");
-  });
-}
+// Discussion tab handler is now at the bottom of the file
 
 // Back from sticky notes list to home
 if (stickyBackBtn) {
@@ -1388,3 +1383,543 @@ document.addEventListener('mouseup', (e) => {
     collapseClickStart = null;
   }
 });
+// ============================================
+// DISCUSSION TAB WITH @MENTIONS
+// ============================================
+
+const DISCUSSION_DB_KEY = "discussion_messages";
+const discussionBackBtn = document.getElementById("discussionBackBtn");
+const discussionInput = document.getElementById("discussionInput");
+const sendMessageBtn = document.getElementById("sendMessageBtn");
+const messagesFeed = document.getElementById("messagesFeed");
+const mentionDropdown = document.getElementById("mentionDropdown");
+const discussionInputOverlay = document.getElementById("discussionInputOverlay");
+const discussionInputPlaceholder = discussionInput?.getAttribute("placeholder") || "";
+
+// Discussion state
+let discussionMessages = [];
+let mentionStartIndex = -1;
+let mentionQuery = "";
+let currentMentions = [];
+let isMentionOpen = false;
+let mentionCandidates = [];
+let activeMentionIndex = 0;
+
+/**
+ * Discussion Data Store
+ */
+const discussionStore = {
+  load() {
+    try {
+      const raw = localStorage.getItem(DISCUSSION_DB_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.warn("Failed to load discussion messages", e);
+      return [];
+    }
+  },
+  
+  persist(messages) {
+    try {
+      localStorage.setItem(DISCUSSION_DB_KEY, JSON.stringify(messages));
+    } catch (e) {
+      console.warn("Failed to persist discussion messages", e);
+    }
+  },
+  
+  addMessage(message) {
+    discussionMessages.push(message);
+    this.persist(discussionMessages);
+  },
+  
+  getMessages() {
+    return [...discussionMessages];
+  }
+};
+
+/**
+ * Initialize discussion tab
+ */
+function initDiscussion() {
+  discussionMessages = discussionStore.load();
+  renderMessages();
+}
+
+/**
+ * Get mention candidates (Everyone + Team Lead + All Members)
+ */
+function getMentionCandidates(query = "") {
+  const candidates = [];
+  
+  // @Everyone option
+  candidates.push({
+    id: "everyone",
+    label: "@Everyone",
+    type: "everyone",
+    name: "Everyone",
+    role: "Notify all team members"
+  });
+  
+  // Get team members
+  const members = teamStore.getMembers();
+  
+  // Add team lead first if exists
+  const lead = members.find(m => m.isLead);
+  if (lead) {
+    candidates.push({
+      id: lead.id,
+      label: `@${lead.name}`,
+      type: "lead",
+      name: lead.name,
+      role: lead.role,
+      isLead: true
+    });
+  }
+  
+  // Add all other members
+  members
+    .filter(m => !m.isLead)
+    .forEach(member => {
+      candidates.push({
+        id: member.id,
+        label: `@${member.name}`,
+        type: "user",
+        name: member.name,
+        role: member.role,
+        isLead: false
+      });
+    });
+  
+  // Filter by query if provided
+  if (query) {
+    const lowerQuery = query.toLowerCase();
+    return candidates.filter(c => 
+      c.name.toLowerCase().includes(lowerQuery) ||
+      c.label.toLowerCase().includes(lowerQuery)
+    );
+  }
+  
+  return candidates;
+}
+
+/**
+ * Show mention dropdown
+ */
+function showMentionDropdown(query = "") {
+  mentionQuery = query;
+  mentionCandidates = getMentionCandidates(query);
+  
+  if (mentionCandidates.length === 0) {
+    hideMentionDropdown();
+    return;
+  }
+  
+  activeMentionIndex = 0;
+  isMentionOpen = true;
+  
+  mentionDropdown.innerHTML = "";
+  mentionDropdown.setAttribute("aria-hidden", "false");
+  
+  mentionCandidates.forEach((candidate, index) => {
+    const option = document.createElement("div");
+    option.className = "mention-option";
+    if (index === activeMentionIndex) {
+      option.classList.add("selected");
+    }
+    
+    option.setAttribute("data-mention-id", candidate.id);
+    option.setAttribute("data-mention-label", candidate.label);
+    option.setAttribute("data-mention-type", candidate.type);
+    
+    const nameEl = document.createElement("div");
+    nameEl.className = "mention-option-name";
+    nameEl.textContent = candidate.name;
+    
+    if (candidate.isLead) {
+      const badge = document.createElement("span");
+      badge.className = "mention-option-badge";
+      badge.textContent = "LEAD";
+      nameEl.appendChild(badge);
+    }
+    
+    const roleEl = document.createElement("div");
+    roleEl.className = "mention-option-role";
+    roleEl.textContent = candidate.role;
+    
+    option.appendChild(nameEl);
+    option.appendChild(roleEl);
+    
+    // Click handler
+    option.addEventListener("click", () => {
+      completeMention(candidate);
+    });
+    
+    mentionDropdown.appendChild(option);
+  });
+}
+
+/**
+ * Hide mention dropdown
+ */
+function hideMentionDropdown() {
+  isMentionOpen = false;
+  mentionDropdown.setAttribute("aria-hidden", "true");
+  mentionDropdown.innerHTML = "";
+  mentionStartIndex = -1;
+  mentionQuery = "";
+  activeMentionIndex = 0;
+  mentionCandidates = [];
+}
+
+/**
+ * Complete mention selection without sending message
+ */
+function completeMention(mention) {
+  if (!mention || mentionStartIndex < 0) return;
+  const text = discussionInput.value;
+  const before = text.substring(0, mentionStartIndex);
+  const after = text.substring(discussionInput.selectionStart);
+  const insertion = `${mention.label} `;
+  const newText = before + insertion + after;
+  discussionInput.value = newText;
+  const cursorPos = before.length + insertion.length;
+  discussionInput.setSelectionRange(cursorPos, cursorPos);
+  hideMentionDropdown();
+  updateInputPreview();
+  discussionInput.focus();
+}
+
+/**
+ * Handle input in discussion textarea
+ */
+function handleDiscussionInput(e) {
+  const text = discussionInput.value;
+  const cursorPos = discussionInput.selectionStart;
+  
+  // Check if @ was just typed
+  if (e.inputType === "insertText" && e.data === "@") {
+    mentionStartIndex = cursorPos - 1;
+    showMentionDropdown("");
+    return;
+  }
+  
+  // If mention dropdown is visible, update query
+  if (isMentionOpen && mentionStartIndex >= 0) {
+    const query = text.substring(mentionStartIndex + 1, cursorPos);
+    
+    // If user moved cursor before @, close dropdown
+    if (cursorPos < mentionStartIndex) {
+      hideMentionDropdown();
+      return;
+    }
+    
+    // If space or newline after @, close dropdown
+    if (query.includes(" ") || query.includes("\n")) {
+      hideMentionDropdown();
+      return;
+    }
+    
+    // Update dropdown with query
+    showMentionDropdown(query);
+  }
+
+  updateInputPreview();
+}
+
+/**
+ * Handle keydown in discussion textarea
+ */
+function handleDiscussionKeydown(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    if (isMentionOpen) {
+      e.preventDefault();
+      const mention = mentionCandidates[activeMentionIndex] || mentionCandidates[0];
+      if (mention) {
+        completeMention(mention);
+      }
+      return;
+    }
+    e.preventDefault();
+    sendMessage();
+    return;
+  }
+
+  if (!isMentionOpen) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    activeMentionIndex = Math.min(activeMentionIndex + 1, Math.max(mentionCandidates.length - 1, 0));
+    updateSelectedOption();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    activeMentionIndex = Math.max(activeMentionIndex - 1, 0);
+    updateSelectedOption();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    hideMentionDropdown();
+  }
+}
+
+/**
+ * Update selected option in dropdown
+ */
+function updateSelectedOption() {
+  const options = mentionDropdown.querySelectorAll(".mention-option");
+  options.forEach((option, index) => {
+    option.classList.toggle("selected", index === activeMentionIndex);
+  });
+  
+  // Scroll selected option into view
+  const selected = options[activeMentionIndex];
+  if (selected) {
+    selected.scrollIntoView({ block: "nearest" });
+  }
+}
+
+function updateInputPreview() {
+  if (!discussionInputOverlay) return;
+  const value = discussionInput?.value || "";
+
+  if (!value) {
+    const placeholderText = discussionInputPlaceholder || "Type a message...";
+    discussionInputOverlay.innerHTML = `<span class="input-placeholder">${escapeHtml(placeholderText)}</span>`;
+    return;
+  }
+
+  let rendered = escapeHtml(value);
+
+  const mentionCatalog = getMentionCandidates().reduce((map, candidate) => {
+    if (!map.has(candidate.label)) {
+      map.set(candidate.label, candidate.type);
+    }
+    return map;
+  }, new Map());
+
+  mentionCatalog.forEach((type, label) => {
+    const regex = new RegExp(escapeRegExp(label), "g");
+    const mentionHtml = `<span class="mention ${type}">${escapeHtml(label)}</span>`;
+    rendered = rendered.replace(regex, mentionHtml);
+  });
+
+  rendered = rendered.replace(/\n/g, "<br>");
+  discussionInputOverlay.innerHTML = rendered;
+}
+
+/**
+ * Parse text and extract mentions
+ * Returns { text: string, mentions: array }
+ */
+function parseMessageWithMentions(text) {
+  const mentions = [];
+  const mentionRegex = /@(\w+(?:\s+\w+)*)/g;
+  
+  let match;
+  while ((match = mentionRegex.exec(text)) !== null) {
+    const mentionName = match[1];
+    
+    // Check if it matches @Everyone
+    if (mentionName.toLowerCase() === "everyone") {
+      mentions.push({
+        id: "everyone",
+        label: "@Everyone",
+        type: "everyone"
+      });
+      continue;
+    }
+    
+    // Check if it matches a team member
+    const members = teamStore.getMembers();
+    const member = members.find(m => 
+      m.name.toLowerCase() === mentionName.toLowerCase()
+    );
+    
+    if (member) {
+      mentions.push({
+        id: member.id,
+        label: `@${member.name}`,
+        type: member.isLead ? "lead" : "user"
+      });
+    }
+  }
+  
+  return { text, mentions };
+}
+
+/**
+ * Send message
+ */
+function sendMessage() {
+  const text = discussionInput.value.trim();
+  
+  if (!text) return;
+  
+  // Parse mentions from text
+  const { mentions } = parseMessageWithMentions(text);
+  
+  // Create message object
+  const message = {
+    id: crypto && crypto.randomUUID ? crypto.randomUUID() : `msg_${Date.now()}`,
+    text,
+    mentions,
+    createdBy: "me",
+    createdAt: Date.now()
+  };
+  
+  // Add to store
+  discussionStore.addMessage(message);
+  
+  // Clear input and mentions
+  discussionInput.value = "";
+  currentMentions = [];
+  updateInputPreview();
+  
+  // Re-render messages
+  renderMessages();
+  
+  // Scroll to bottom
+  messagesFeed.scrollTop = messagesFeed.scrollHeight;
+}
+
+/**
+ * Render all messages
+ */
+function renderMessages() {
+  messagesFeed.innerHTML = "";
+  
+  if (discussionMessages.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "discussion-empty";
+    empty.innerHTML = "<p>No messages yet. Start a discussion with your team!</p>";
+    messagesFeed.appendChild(empty);
+    return;
+  }
+  
+  discussionMessages.forEach(message => {
+    const messageEl = createMessageElement(message);
+    messagesFeed.appendChild(messageEl);
+  });
+}
+
+/**
+ * Create message DOM element
+ */
+function createMessageElement(message) {
+  const messageEl = document.createElement("div");
+  messageEl.className = "message";
+  if (message.createdBy === "me") {
+    messageEl.classList.add("me");
+  }
+  
+  // Header with author and time
+  const header = document.createElement("div");
+  header.className = "message-header";
+  
+  const author = document.createElement("span");
+  author.className = "message-author";
+  author.textContent = message.createdBy === "me" ? "You" : message.createdBy;
+  
+  const time = document.createElement("span");
+  time.className = "message-time";
+  time.textContent = formatMessageTime(message.createdAt);
+  
+  header.appendChild(author);
+  header.appendChild(time);
+  
+  // Message text with rendered mentions
+  const textEl = document.createElement("div");
+  textEl.className = "message-text";
+  textEl.innerHTML = renderMessageText(message.text, message.mentions);
+  
+  messageEl.appendChild(header);
+  messageEl.appendChild(textEl);
+  
+  return messageEl;
+}
+
+/**
+ * Render message text with styled mentions
+ */
+function renderMessageText(text, mentions) {
+  if (!mentions || mentions.length === 0) {
+    return escapeHtml(text);
+  }
+  
+  let result = escapeHtml(text);
+  
+  // Replace mentions with styled spans
+  mentions.forEach(mention => {
+    const mentionHtml = `<span class="mention ${mention.type}">${escapeHtml(mention.label)}</span>`;
+    const regex = new RegExp(escapeRegExp(escapeHtml(mention.label)), "g");
+    result = result.replace(regex, mentionHtml);
+  });
+  
+  return result;
+}
+
+/**
+ * Format message timestamp
+ */
+function formatMessageTime(timestamp) {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  
+  return date.toLocaleDateString();
+}
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+/**
+ * Escape regex special characters
+ */
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Event Listeners for Discussion
+if (discussionInput) {
+  discussionInput.addEventListener("input", handleDiscussionInput);
+  discussionInput.addEventListener("keydown", handleDiscussionKeydown);
+}
+
+if (sendMessageBtn) {
+  sendMessageBtn.addEventListener("click", sendMessage);
+}
+
+// Back button for discussion
+if (discussionBackBtn) {
+  discussionBackBtn.addEventListener("click", () => {
+    setActiveNav("stickyTabBtn");
+    navigateTo("home");
+  });
+}
+
+// Update discussion tab click handler to load messages
+const originalDiscussionClickHandler = discussionTabBtn?.onclick;
+if (discussionTabBtn) {
+  discussionTabBtn.addEventListener("click", () => {
+    setActiveNav("discussionTabBtn");
+    initDiscussion(); // Load and render messages
+    navigateTo("discussion");
+  });
+}
+
+updateInputPreview();
+// Initialize on load
+initDiscussion();
