@@ -1,5 +1,53 @@
 import { analyzeText } from "./ai.js";
 
+// --------------------------------------------
+// Canvas element attachment (Document Sandbox)
+// --------------------------------------------
+let addOnUISdk = null;
+let sandboxProxy = null;
+let sandboxConnectState = "init"; // init | connecting | connected | error
+let sandboxConnectError = "";
+let sandboxConnectAttempts = 0;
+
+async function initAddOnSdkAndSandboxProxy() {
+  if (sandboxProxy) return sandboxProxy;
+  if (sandboxConnectState === "connecting") return null;
+
+  sandboxConnectState = "connecting";
+  sandboxConnectAttempts += 1;
+
+  try {
+    addOnUISdk = (await import("https://express.adobe.com/static/add-on-sdk/sdk.js")).default;
+    await addOnUISdk.ready;
+    const runtime = addOnUISdk?.instance?.runtime;
+    const entrypointType = addOnUISdk?.instance?.entrypointType;
+    const runtimeType = runtime?.type;
+    const hasApiProxy = typeof runtime?.apiProxy === "function";
+    const manifestEp0 = addOnUISdk?.instance?.manifest?.entryPoints?.[0];
+    const manifestSandbox = manifestEp0?.documentSandbox;
+    if (!hasApiProxy) {
+      throw new Error(
+        `addOnUISdk.instance.runtime.apiProxy is unavailable | entrypointType=${entrypointType} runtimeType=${runtimeType} manifest.documentSandbox=${manifestSandbox}`
+      );
+    }
+    sandboxProxy = await addOnUISdk.instance.runtime.apiProxy(
+      addOnUISdk.constants?.RuntimeType?.documentSandbox || "documentSandbox"
+    );
+    sandboxConnectState = "connected";
+    sandboxConnectError = "";
+    console.log("[NoteGrid] Connected to documentSandbox.");
+    return sandboxProxy;
+  } catch (e) {
+    sandboxConnectState = "error";
+    sandboxProxy = null;
+    sandboxConnectError = String(e && e.message ? e.message : e);
+    console.warn("[NoteGrid] Failed to connect to documentSandbox:", e);
+    return null;
+  }
+}
+
+initAddOnSdkAndSandboxProxy();
+
 const board = document.getElementById("board");
 const homeView = document.querySelector('[data-view="home"]');
 const inputView = document.querySelector('[data-view="input"]');
@@ -1390,11 +1438,18 @@ document.addEventListener('mouseup', (e) => {
 const DISCUSSION_DB_KEY = "discussion_messages";
 const discussionBackBtn = document.getElementById("discussionBackBtn");
 const discussionInput = document.getElementById("discussionInput");
+const discussionTextareaShell = document.getElementById("discussionTextareaShell") || discussionInput?.closest(".textarea-shell");
 const sendMessageBtn = document.getElementById("sendMessageBtn");
 const messagesFeed = document.getElementById("messagesFeed");
 const mentionDropdown = document.getElementById("mentionDropdown");
 const discussionInputOverlay = document.getElementById("discussionInputOverlay");
 const discussionInputPlaceholder = discussionInput?.getAttribute("placeholder") || "";
+const selectedCanvasNodeChip = document.getElementById("selectedCanvasNodeChip");
+const selectedCanvasNodeTitle = document.getElementById("selectedCanvasNodeTitle");
+const selectedCanvasNodeHint = document.getElementById("selectedCanvasNodeHint");
+const dismissSelectedCanvasNodeBtn = document.getElementById("dismissSelectedCanvasNodeBtn");
+const canvasAttachmentStatus = document.getElementById("canvasAttachmentStatus");
+const composerAttachmentsEl = document.getElementById("composerAttachments");
 
 // Discussion state
 let discussionMessages = [];
@@ -1404,6 +1459,227 @@ let currentMentions = [];
 let isMentionOpen = false;
 let mentionCandidates = [];
 let activeMentionIndex = 0;
+
+// Attachment + tagging state (discussion)
+const NODE_TAG_PREFIX = "NG-";
+const NODE_TAG_COUNTER_KEY = "notegrid_next_node_tag";
+let currentSelection = null; // { nodeId, nodeType, tag }
+let pendingAttachments = []; // { nodeId, nodeType, tag }
+let dismissedSelectionNodeId = null;
+
+
+function setCanvasStatus(text) {
+  if (canvasAttachmentStatus) canvasAttachmentStatus.textContent = text;
+}
+
+function formatNodeTag(n) {
+  const num = Math.max(1, Number(n || 1));
+  return `${NODE_TAG_PREFIX}${String(num).padStart(3, "0")}`;
+}
+
+function nextNodeTag() {
+  const raw = localStorage.getItem(NODE_TAG_COUNTER_KEY);
+  const next = raw ? Number(raw) : 1;
+  const tag = formatNodeTag(next);
+  localStorage.setItem(NODE_TAG_COUNTER_KEY, String(next + 1));
+  return tag;
+}
+
+function insertAtCursor(textarea, textToInsert) {
+  if (!textarea) return;
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? textarea.value.length;
+  const before = textarea.value.slice(0, start);
+  const after = textarea.value.slice(end);
+  textarea.value = before + textToInsert + after;
+  const nextPos = before.length + textToInsert.length;
+  textarea.setSelectionRange(nextPos, nextPos);
+}
+
+function renderComposerAttachments() {
+  if (!composerAttachmentsEl) return;
+  composerAttachmentsEl.replaceChildren();
+  if (!pendingAttachments.length) {
+    if (discussionTextareaShell) discussionTextareaShell.classList.remove("has-attachment");
+    updateSelectionChip();
+    return;
+  }
+
+  if (discussionTextareaShell) discussionTextareaShell.classList.add("has-attachment");
+
+  const fragment = document.createDocumentFragment();
+  pendingAttachments.forEach((att, idx) => {
+    const row = document.createElement("div");
+    row.className = "composer-attachment";
+
+    const badge = document.createElement("span");
+    badge.className = "composer-attachment-badge";
+    badge.textContent = `[${att.tag}] ${att.nodeType}`;
+
+    const jump = document.createElement("button");
+    jump.type = "button";
+    jump.className = "node-id-link";
+    jump.textContent = `[${att.tag}]`;
+    jump.onclick = () => jumpToTag(att.tag);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "remove-attachment-btn";
+    removeBtn.textContent = "×";
+    removeBtn.setAttribute("aria-label", "Remove attachment");
+    removeBtn.onclick = () => {
+      pendingAttachments.splice(idx, 1);
+      renderComposerAttachments();
+    };
+
+    row.appendChild(badge);
+    row.appendChild(jump);
+    row.appendChild(removeBtn);
+    fragment.appendChild(row);
+  });
+
+  composerAttachmentsEl.appendChild(fragment);
+  // Keep UI consistent: if we have an attachment (purple badge),
+  // hide the separate "Selected: ..." pill to avoid redundancy.
+  updateSelectionChip();
+}
+
+async function ensureSelectionHasTag(sel) {
+  if (!sel?.nodeId) return null;
+  if (!sandboxProxy?.ensureTag) return null;
+
+  if (sel.tag) return sel.tag;
+  const tag = nextNodeTag();
+  const saved = await sandboxProxy.ensureTag(sel.nodeId, tag);
+  return saved || tag;
+}
+
+function updateSelectionChip() {
+  if (!selectedCanvasNodeChip) return;
+
+  // If something is already attached in the composer, that purple badge should be the
+  // single indicator. Hide the separate selection pill to keep the UI clean.
+  if (Array.isArray(pendingAttachments) && pendingAttachments.length > 0) {
+    selectedCanvasNodeChip.setAttribute("aria-hidden", "true");
+    selectedCanvasNodeChip.draggable = false;
+    if (discussionTextareaShell) discussionTextareaShell.classList.remove("has-selection");
+    return;
+  }
+
+  if (!currentSelection?.nodeId) {
+    selectedCanvasNodeChip.setAttribute("aria-hidden", "true");
+    selectedCanvasNodeChip.draggable = false;
+    if (discussionTextareaShell) discussionTextareaShell.classList.remove("has-selection");
+    if (selectedCanvasNodeTitle) selectedCanvasNodeTitle.textContent = "";
+    if (selectedCanvasNodeHint) selectedCanvasNodeHint.textContent = "Select something on the canvas";
+    return;
+  }
+
+  selectedCanvasNodeChip.setAttribute("aria-hidden", "false");
+  selectedCanvasNodeChip.draggable = true;
+  if (discussionTextareaShell) discussionTextareaShell.classList.add("has-selection");
+  if (selectedCanvasNodeTitle) {
+    // Keep it compact (this is now inside the textbox area)
+    selectedCanvasNodeTitle.textContent = currentSelection.tag
+      ? `Selected: [${currentSelection.tag}] ${currentSelection.nodeType}`
+      : `Selected: ${currentSelection.nodeType}`;
+  }
+  if (selectedCanvasNodeHint) {
+    selectedCanvasNodeHint.textContent = currentSelection.tag
+      ? "Drag into the textbox to attach (or click to attach)"
+      : "Click to assign ID + attach";
+  }
+}
+
+async function pollSelectionAndCount() {
+  if (!sandboxProxy?.getSelection) {
+    await initAddOnSdkAndSandboxProxy();
+
+    if (!sandboxProxy?.getSelection) {
+      if (sandboxConnectState === "connecting") {
+        setCanvasStatus("Canvas attachment: connecting to sandbox…");
+        return;
+      }
+      if (sandboxConnectState === "error") {
+        setCanvasStatus(
+          `Canvas attachment: sandbox not connected. ${sandboxConnectAttempts > 1 ? "Retrying… " : ""}` +
+            `(${sandboxConnectError || "unknown error"})`
+        );
+        // Auto-retry (manifest might not be reloaded yet in Express)
+        if (sandboxConnectAttempts < 10) {
+          setTimeout(() => initAddOnSdkAndSandboxProxy(), 1500);
+        }
+        return;
+      }
+      setCanvasStatus("Canvas attachment: sandbox not connected (click Add-on Dev Refresh).");
+      return;
+    }
+  }
+
+  try {
+    const sel = await sandboxProxy.getSelection();
+    // If user dismissed this selection, keep it hidden until they pick a different element.
+    if (sel?.nodeId && dismissedSelectionNodeId && sel.nodeId === dismissedSelectionNodeId) {
+      currentSelection = null;
+    } else {
+      currentSelection = sel || null;
+      dismissedSelectionNodeId = null;
+    }
+
+    if (!currentSelection) {
+      setCanvasStatus("Canvas attachment: select an element on the canvas.");
+      updateSelectionChip();
+    } else {
+      // Do NOT assign IDs just by clicking around. IDs are assigned only when user attaches.
+      const count = Number(currentSelection.selectionCount || 1);
+      const prefix = count > 1 ? `Canvas attachment: ${count} selected, using the first. ` : "Canvas attachment: ";
+      setCanvasStatus(prefix + (currentSelection.tag ? "ready." : "ready — click chip to attach."));
+      updateSelectionChip();
+    }
+  } catch (_e) {
+    setCanvasStatus("Canvas attachment: waiting for sandbox…");
+  }
+}
+
+async function attachCurrentSelectionToComposer() {
+  if (!currentSelection?.nodeId) {
+    alert("Select an element on the canvas first.");
+    return;
+  }
+  const tag = currentSelection.tag || (await ensureSelectionHasTag(currentSelection));
+  if (!tag) {
+    alert("Could not assign an ID to the selected element.");
+    return;
+  }
+  // Make the tag available immediately (avoid needing a second click / waiting for poll).
+  currentSelection.tag = tag;
+  updateSelectionChip();
+
+  const payload = {
+    nodeId: currentSelection.nodeId,
+    nodeType: currentSelection.nodeType,
+    tag
+  };
+  // Only allow ONE attachment at a time in the composer.
+  pendingAttachments = [payload];
+  renderComposerAttachments();
+
+  // Insert the id into message text so it's visible to everyone
+  // Do NOT auto-insert [NG-###] into the textarea when attaching; otherwise
+  // it can appear "tagged twice" (once as attachment + once in text).
+}
+
+async function jumpToTag(tag) {
+  if (!tag) return;
+  if (!sandboxProxy?.focusByTag) {
+    alert("Canvas jump not available. Refresh the add-on.");
+    return;
+  }
+  const res = await sandboxProxy.focusByTag(tag);
+  if (!res?.ok) {
+    alert(`Couldn't find element ${tag} on the canvas.`);
+  }
+}
 
 /**
  * Discussion Data Store
@@ -1581,7 +1857,9 @@ function completeMention(mention) {
   const text = discussionInput.value;
   const before = text.substring(0, mentionStartIndex);
   const after = text.substring(discussionInput.selectionStart);
-  const insertion = `${mention.label} `;
+  // If we have a selected element tag, append it to the mention so tagged member can jump by id.
+  const tag = currentSelection?.tag;
+  const insertion = tag ? `${mention.label} [${tag}] ` : `${mention.label} `;
   const newText = before + insertion + after;
   discussionInput.value = newText;
   const cursorPos = before.length + insertion.length;
@@ -1751,10 +2029,21 @@ function parseMessageWithMentions(text) {
  * Send message
  */
 function sendMessage() {
-  const text = discussionInput.value.trim();
+  let text = discussionInput.value.trim();
   
-  if (!text) return;
+  if (!text && pendingAttachments.length === 0) return;
+
+  // Snapshot attachments for the message, then clear composer state deterministically.
+  const attachmentsToSend = Array.isArray(pendingAttachments) ? [...pendingAttachments] : [];
   
+  // If we have an attachment, avoid sending the same [NG-###] again in text
+  // (users sometimes typed it manually or old behavior inserted it).
+  const attachedTag = pendingAttachments?.[0]?.tag;
+  if (attachedTag) {
+    const re = new RegExp(`\\s*\\[${escapeRegExp(attachedTag)}\\]\\s*`, "g");
+    text = text.replace(re, " ").replace(/\s{2,}/g, " ").trim();
+  }
+
   // Parse mentions from text
   const { mentions } = parseMessageWithMentions(text);
   
@@ -1763,6 +2052,7 @@ function sendMessage() {
     id: crypto && crypto.randomUUID ? crypto.randomUUID() : `msg_${Date.now()}`,
     text,
     mentions,
+    attachments: attachmentsToSend,
     createdBy: "me",
     createdAt: Date.now()
   };
@@ -1773,6 +2063,8 @@ function sendMessage() {
   // Clear input and mentions
   discussionInput.value = "";
   currentMentions = [];
+  pendingAttachments = [];
+  renderComposerAttachments();
   updateInputPreview();
   
   // Re-render messages
@@ -1834,6 +2126,22 @@ function createMessageElement(message) {
   
   messageEl.appendChild(header);
   messageEl.appendChild(textEl);
+
+  const atts = Array.isArray(message.attachments) ? message.attachments : [];
+  if (atts.length) {
+    const wrap = document.createElement("div");
+    wrap.className = "message-attachments";
+    atts.forEach((att) => {
+      if (!att?.tag) return;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "node-id-link";
+      btn.textContent = `[${att.tag}] ${att.nodeType || "Element"}`;
+      btn.setAttribute("data-node-tag", att.tag);
+      wrap.appendChild(btn);
+    });
+    messageEl.appendChild(wrap);
+  }
   
   return messageEl;
 }
@@ -1843,7 +2151,8 @@ function createMessageElement(message) {
  */
 function renderMessageText(text, mentions) {
   if (!mentions || mentions.length === 0) {
-    return escapeHtml(text);
+    // Linkify node tags like [NG-001]
+    return escapeHtml(text).replace(/\[(NG-\d{3})\]/g, `<button type="button" class="node-id-link" data-node-tag="$1">[$1]</button>`);
   }
   
   let result = escapeHtml(text);
@@ -1854,7 +2163,9 @@ function renderMessageText(text, mentions) {
     const regex = new RegExp(escapeRegExp(escapeHtml(mention.label)), "g");
     result = result.replace(regex, mentionHtml);
   });
-  
+
+  // Linkify node tags like [NG-001]
+  result = result.replace(/\[(NG-\d{3})\]/g, `<button type="button" class="node-id-link" data-node-tag="$1">[$1]</button>`);
   return result;
 }
 
@@ -1902,6 +2213,18 @@ if (sendMessageBtn) {
   sendMessageBtn.addEventListener("click", sendMessage);
 }
 
+// Click-to-jump for any [NG-###] link in messages
+if (messagesFeed) {
+  messagesFeed.addEventListener("click", (e) => {
+    const btn = e.target?.closest?.(".node-id-link");
+    const tag = btn?.getAttribute?.("data-node-tag");
+    if (tag) {
+      e.preventDefault();
+      jumpToTag(tag);
+    }
+  });
+}
+
 // Back button for discussion
 if (discussionBackBtn) {
   discussionBackBtn.addEventListener("click", () => {
@@ -1916,9 +2239,85 @@ if (discussionTabBtn) {
   discussionTabBtn.addEventListener("click", () => {
     setActiveNav("discussionTabBtn");
     initDiscussion(); // Load and render messages
+    pollSelectionAndCount();
     navigateTo("discussion");
   });
 }
+
+// Selection chip interactions
+if (selectedCanvasNodeChip) {
+  selectedCanvasNodeChip.addEventListener("click", () => {
+    attachCurrentSelectionToComposer();
+  });
+  selectedCanvasNodeChip.addEventListener("dragstart", (e) => {
+    if (!currentSelection?.nodeId || !currentSelection?.tag) {
+      // Assigning IDs is async, so drag can't start yet.
+      e.preventDefault();
+      setCanvasStatus("Canvas attachment: click the chip once to assign an ID, then drag.");
+      return;
+    }
+    try {
+      const payload = JSON.stringify({
+        nodeId: currentSelection.nodeId,
+        nodeType: currentSelection.nodeType,
+        tag: currentSelection.tag
+      });
+      e.dataTransfer?.setData?.("application/x-notegrid-node", payload);
+      e.dataTransfer?.setData?.("text/plain", payload);
+      e.dataTransfer.effectAllowed = "copy";
+    } catch (_err) {
+      // ignore
+    }
+  });
+}
+
+// Dismiss selection (×) inside the selection chip.
+// This doesn't change the canvas selection in Express; it just hides the pill until selection changes.
+if (dismissSelectedCanvasNodeBtn) {
+  dismissSelectedCanvasNodeBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (currentSelection?.nodeId) dismissedSelectionNodeId = currentSelection.nodeId;
+    currentSelection = null;
+    setCanvasStatus("Canvas attachment: selection cleared.");
+    updateSelectionChip();
+  });
+}
+
+function tryReadDroppedNodePayload(dt) {
+  if (!dt) return null;
+  const raw = dt.getData("application/x-notegrid-node") || dt.getData("text/plain");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (_e) {
+    return null;
+  }
+}
+
+function handleNodeDrop(e) {
+  e.preventDefault();
+  const payload = tryReadDroppedNodePayload(e.dataTransfer);
+  if (!payload?.tag || !payload?.nodeId) return;
+  // Only allow ONE attachment at a time in the composer.
+  pendingAttachments = [payload];
+  renderComposerAttachments();
+  // Don't auto-write the tag into the textarea (avoids duplicates).
+}
+
+// Allow dropping the node chip into the discussion textarea area.
+const dropTargets = [
+  discussionInput,
+  discussionInput?.closest?.(".textarea-shell"),
+  discussionInput?.closest?.(".discussion-input-area")
+].filter(Boolean);
+dropTargets.forEach((el) => {
+  el.addEventListener("dragover", (e) => e.preventDefault());
+  el.addEventListener("drop", handleNodeDrop);
+});
+
+// Poll canvas selection (UI side timers are allowed)
+setInterval(pollSelectionAndCount, 1200);
 
 updateInputPreview();
 // Initialize on load

@@ -167,8 +167,8 @@
             <header class="discussion-header-sticky">
                 <div class="header-row-1">
                     <button id="discussionBackBtn" class="icon-back-btn">←</button>
+                    <h2 class="header-title header-title--inline">Discussion</h2>
                 </div>
-                <h2 class="header-title">Discussion</h2>
                 <p class="header-subtitle">Collaborate with your team using @mentions</p>
             </header>
             
@@ -176,23 +176,53 @@
                 <div id="messagesFeed" class="messages-feed" aria-live="polite"></div>
                 
                 <div class="discussion-input-area">
-                    <div class="input-wrapper">
-                        <div class="textarea-shell">
-                            <div 
-                                id="discussionInputOverlay" 
-                                class="discussion-input-overlay" 
-                                aria-hidden="true"
-                            ></div>
-                            <textarea 
-                                id="discussionInput" 
-                                class="discussion-textarea" 
-                                placeholder="Type a message... Use @ to mention"
-                                rows="3"
-                            ></textarea>
+                        <div class="input-wrapper">
+                            <div class="textarea-shell" id="discussionTextareaShell">
+                                <div id="composerAttachments" class="composer-attachments composer-attachments--inline" aria-live="polite"></div>
+                                <div
+                                    id="selectedCanvasNodeChip"
+                                    class="canvas-attachment-chip canvas-attachment-chip--inline"
+                                    aria-hidden="true"
+                                    draggable="true"
+                                >
+                                    <div class="canvas-attachment-meta">
+                                        <div id="selectedCanvasNodeTitle" class="canvas-attachment-title">Selected element</div>
+                                        <div id="selectedCanvasNodeHint" class="canvas-attachment-hint">Click to attach</div>
+                                    </div>
+                                    <button
+                                        id="dismissSelectedCanvasNodeBtn"
+                                        type="button"
+                                        class="canvas-attachment-dismiss-btn"
+                                        aria-label="Clear selected element"
+                                        title="Clear selected element"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+
+                                <div
+                                    id="canvasAttachmentStatus"
+                                    class="canvas-attachment-status canvas-attachment-status--inline"
+                                    aria-live="polite"
+                                >
+                                    Canvas attachment: select an element…
+                                </div>
+
+                                <div
+                                    id="discussionInputOverlay"
+                                    class="discussion-input-overlay"
+                                    aria-hidden="true"
+                                ></div>
+                                <textarea
+                                    id="discussionInput"
+                                    class="discussion-textarea"
+                                    placeholder="Type a message... Use @ to mention"
+                                    rows="3"
+                                ></textarea>
+                            </div>
+                            <div id="mentionDropdown" class="mention-dropdown" aria-hidden="true"></div>
                         </div>
-                        <div id="mentionDropdown" class="mention-dropdown" aria-hidden="true"></div>
-                    </div>
-                    <button id="sendMessageBtn" class="send-btn">Send</button>
+                        <button id="sendMessageBtn" class="send-btn">Send</button>
                 </div>
             </div>
         </div>

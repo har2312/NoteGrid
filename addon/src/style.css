@@ -200,9 +200,10 @@ body {
 
 .header-row-1 {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   margin-bottom: 10px;
+  gap: 10px;
 }
 
 .icon-back-btn {
@@ -249,6 +250,10 @@ body {
   font-weight: 600;
   color: #1a1a1a;
   line-height: 1.2;
+}
+
+.header-title--inline {
+  margin: 0;
 }
 
 .header-subtitle {
@@ -1058,11 +1063,163 @@ button {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 16px 16px 20px 16px;
+  padding: 14px 16px 18px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
+  background: #ffffff;
+}
+
+/* Canvas element attachment UI */
+.discussion-attachments-row {
+  padding: 0 16px 10px 16px;
+}
+
+.canvas-attachment-status {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b6b75;
+}
+
+.canvas-attachment-chip {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed #d7d1ff;
+  background: #fbfaff;
+  cursor: grab;
+  user-select: none;
+}
+
+.canvas-attachment-chip[aria-hidden="false"] {
+  display: flex;
+}
+
+.canvas-attachment-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.canvas-attachment-title {
+  font-weight: 800;
+  font-size: 13px;
+  color: #2c2c34;
+}
+
+.canvas-attachment-hint {
+  font-size: 12px;
+  color: #6b6b75;
+}
+
+.canvas-attachment-dismiss-btn {
+  border: none;
+  background: rgba(0, 0, 0, 0.06);
+  color: #2c2c34;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 900;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.canvas-attachment-dismiss-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.composer-attachments {
+  padding: 0 16px 10px 16px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.composer-attachments--inline {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  padding: 0;
+  z-index: 3;
+}
+
+.textarea-shell.has-attachment .discussion-textarea {
+  /* Make room for the inline attached-element pill */
+  padding-top: 64px;
+}
+
+.composer-attachment {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #ffffff;
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.composer-attachment-badge {
+  font-weight: 800;
+  font-size: 12px;
+  color: #1a1a1a;
+  min-width: 0;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.remove-attachment-btn {
+  border: none;
+  background: #f3f3f3;
+  color: #333;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.remove-attachment-btn:hover {
+  background: #e9e9e9;
+}
+
+.node-id-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid #dcd5ff;
+  background: #ffffff;
+  color: #4527ff;
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.node-id-link:hover {
+  background: #f0edff;
+}
+
+/* Message attachments area (below text) */
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 /* Individual message */
@@ -1100,9 +1257,9 @@ button {
 }
 
 .message-text {
-  font-size: 14px;
+  font-size: 15px;
   color: #1a1a1a;
-  line-height: 1.5;
+  line-height: 1.65;
   word-wrap: break-word;
   white-space: pre-wrap;
 }
@@ -1134,11 +1291,9 @@ button {
 
 /* Input area - fixed at bottom */
 .discussion-input-area {
-  position: sticky;
-  bottom: 0;
   flex-shrink: 0;
   min-height: 130px;
-  padding: 16px;
+  padding: 12px 16px;
   background: #ffffff;
   border-top: 1px solid #e6e6e6;
   display: flex;
@@ -1164,6 +1319,42 @@ button {
   min-height: 0;
 }
 
+.textarea-shell.has-selection .discussion-textarea {
+  /* Make room for the inline "Selected: ..." pill */
+  padding-top: 72px;
+}
+
+.canvas-attachment-chip--inline {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px dashed rgba(69, 39, 255, 0.35);
+  background: rgba(69, 39, 255, 0.06);
+  z-index: 3;
+  cursor: grab;
+}
+
+.canvas-attachment-chip--inline .canvas-attachment-title {
+  font-size: 12px;
+}
+
+.canvas-attachment-chip--inline .canvas-attachment-hint {
+  font-size: 11px;
+}
+
+.canvas-attachment-chip--inline:active {
+  cursor: grabbing;
+}
+
+.canvas-attachment-status--inline {
+  display: none; /* keep the box clean; we'll show status in the chip text */
+}
+
 .discussion-textarea {
   width: 100%;
   height: auto;
@@ -1178,8 +1369,8 @@ button {
   resize: none;
   box-sizing: border-box;
   transition: border-color 0.2s ease;
-  background: transparent;
-  color: transparent;
+  background: #ffffff;
+  color: #1a1a1a;
   caret-color: #4527ff;
   overflow-y: auto;
   flex-shrink: 0;
@@ -1194,7 +1385,7 @@ button {
 }
 
 .discussion-textarea::placeholder {
-  color: transparent;
+  color: #9a9aa3;
 }
 
 #discussionInput {
@@ -1202,21 +1393,7 @@ button {
 }
 
 .discussion-input-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 16px;
-  pointer-events: none;
-  color: #1a1a1a;
-  font-size: 14px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-  border-radius: 10px;
-  z-index: 1;
-  background: #fafafa;
+  display: none;
 }
 
 .input-placeholder {

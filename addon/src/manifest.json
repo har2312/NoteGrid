@@ -4,6 +4,7 @@
     "version": "1.0.0",
     "manifestVersion": 2,
     "requirements": {
+        "experimentalApis": true,
         "apps": [
             {
                 "name": "Express",
@@ -15,7 +16,11 @@
         {
             "type": "panel",
             "id": "panel1",
-            "main": "index.html"
+            "main": "index.html",
+            "documentSandbox": "code.js",
+            "permissions": {
+                "sandbox": ["allow-popups", "allow-downloads", "allow-popups-to-escape-sandbox"]
+            }
         }
     ]
 }
