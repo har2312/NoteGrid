@@ -1,7 +1,11 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
 import OpenAI from "openai";
 import multer from "multer";
+import nodemailer from "nodemailer";
 
 const app = express();
 app.use(cors());
@@ -99,6 +103,74 @@ No explanation.
     console.error("AI ERROR:", err);
     res.status(500).json({ error: "AI failed" });
   }
+});
+
+app.post("/notify/tag", async (req, res) => {
+  const {
+    email,
+    taggedUser,
+    taggedBy = "You",
+    message,
+    context = "Discussion Panel"
+  } = req.body || {};
+
+  if (!email || typeof email !== "string") {
+    return res.status(400).json({ error: "Missing email" });
+  }
+  if (!message || typeof message !== "string") {
+    return res.status(400).json({ error: "Missing message" });
+  }
+
+  const EMAIL_USER = process.env.EMAIL_USER;
+  const EMAIL_PASS = process.env.EMAIL_PASS;
+
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    return res.status(500).json({ error: "Email credentials not configured" });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: EMAIL_USER,
+        pass: EMAIL_PASS
+      }
+    });
+
+    const safeTaggedUser = typeof taggedUser === "string" ? taggedUser : "";
+    const safeTaggedBy = typeof taggedBy === "string" ? taggedBy : "You";
+    const safeContext = typeof context === "string" ? context : "Discussion Panel";
+
+    const subject = "You were tagged in NoteGrid";
+    const text = [
+      safeTaggedUser ? `Hi ${safeTaggedUser},` : "Hi,",
+      "",
+      `${safeTaggedBy} tagged you in NoteGrid.`,
+      "",
+      `Context: ${safeContext}`,
+      "",
+      "Message:",
+      message,
+      "",
+      "— NoteGrid"
+    ].join("\n");
+
+    await transporter.sendMail({
+      from: EMAIL_USER,
+      to: email,
+      subject,
+      text
+    });
+
+    return res.json({ ok: true });
+  } catch (err) {
+      console.error("EMAIL ERROR FULL:", err);
+      return res.status(500).json({
+        error: err.message,
+        code: err.code
+      });
+    }
+  
 });
 
 app.listen(3001, () =>

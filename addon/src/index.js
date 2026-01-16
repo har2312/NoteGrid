@@ -1,3 +1,4 @@
+
 import { analyzeText } from "./ai.js";
 
 // --------------------------------------------
@@ -1988,14 +1989,21 @@ function updateInputPreview() {
 /**
  * Parse text and extract mentions
  * Returns { text: string, mentions: array }
+ * 
+ * Matches @username patterns (stops at first space/punctuation)
+ * Supports both inserted mentions (from dropdown) and manually typed @tags
  */
 function parseMessageWithMentions(text) {
   const mentions = [];
-  const mentionRegex = /@(\w+(?:\s+\w+)*)/g;
+  // Match @ followed by word characters only (no spaces, stops at first space/punctuation)
+  const mentionRegex = /@(\w+)/g;
+  
+  console.log("🔍 Parsing message for mentions:", text);
   
   let match;
   while ((match = mentionRegex.exec(text)) !== null) {
     const mentionName = match[1];
+    console.log(`🔍 Found @mention: "${mentionName}"`);
     
     // Check if it matches @Everyone
     if (mentionName.toLowerCase() === "everyone") {
@@ -2004,11 +2012,14 @@ function parseMessageWithMentions(text) {
         label: "@Everyone",
         type: "everyone"
       });
+      console.log("  ✅ Matched @Everyone");
       continue;
     }
     
     // Check if it matches a team member
     const members = teamStore.getMembers();
+    console.log(`  🔍 Searching in team (${members.length} members):`, members.map(m => m.name));
+    
     const member = members.find(m => 
       m.name.toLowerCase() === mentionName.toLowerCase()
     );
@@ -2019,10 +2030,119 @@ function parseMessageWithMentions(text) {
         label: `@${member.name}`,
         type: member.isLead ? "lead" : "user"
       });
+      console.log(`  ✅ Matched team member: ${member.name} (${member.email})`);
+    } else {
+      console.log(`  ⚠️ No team member found matching: "${mentionName}"`);
     }
   }
   
+  console.log(`🔍 Final mentions array:`, mentions);
   return { text, mentions };
+}
+
+/**
+ * Notify tagged users via email (fire-and-forget)
+ * Safety features:
+ * - Ignores @Everyone mentions (only notifies individual users/leads)
+ * - Deduplicates by email (same user tagged multiple times = 1 email)
+ * - Skips unmatched tags (if @username not in team store)
+ * - Skips users without email addresses
+ * - Logs success/failure without blocking UI
+ */
+async function notifyTaggedUsers({ text, mentions }) {
+  // Guard: no mentions at all
+  if (!mentions || mentions.length === 0) {
+    console.log("📧 No tags detected, skipping email notifications");
+    return;
+  }
+
+  // Filter to only user/lead mentions (ignore @Everyone)
+  const taggable = mentions.filter((m) => m && (m.type === "user" || m.type === "lead"));
+  
+  if (!taggable.length) {
+    console.log("📧 No individual user tags found (only @Everyone), skipping email");
+    return;
+  }
+
+  const members = teamStore.getMembers();
+  const seenEmails = new Set();
+  const notifiedUsers = [];
+
+  // Build notification payloads (deduplicate by email)
+  const payloads = taggable
+    .map((mention) => {
+      const member = members.find((m) => m.id === mention.id);
+      
+      // Skip if member not found in team store
+      if (!member) {
+        console.log(`📧 Skipped tag: ${mention.label} (not found in team)`);
+        return null;
+      }
+
+      const email = member.email?.trim();
+      
+      // Skip if no email address
+      if (!email) {
+        console.log(`📧 Skipped tag: ${mention.label} (no email address)`);
+        return null;
+      }
+
+      // Skip duplicate emails (same user tagged multiple times)
+      const key = email.toLowerCase();
+      if (seenEmails.has(key)) {
+        console.log(`📧 Skipped duplicate tag: ${mention.label}`);
+        return null;
+      }
+      seenEmails.add(key);
+
+      notifiedUsers.push(member.name || mention.label);
+
+      return {
+        email,
+        taggedUser: member.name || mention.label?.replace(/^@/, "") || "User",
+        taggedBy: "You",
+        message: text,
+        context: "Discussion Panel"
+      };
+    })
+    .filter(Boolean);
+
+  // Guard: no valid payloads after filtering
+  if (!payloads.length) {
+    console.log("📧 No valid email recipients after filtering");
+    return;
+  }
+
+  console.log(`📧 Sending notifications to: ${notifiedUsers.join(", ")}`);
+
+  // Send all notifications (non-blocking, fire-and-forget)
+  const results = await Promise.allSettled(
+    payloads.map((payload) =>
+      fetch("http://localhost:3001/notify/tag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }).then(async (res) => {
+        if (!res.ok) {
+          const error = await res.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(error.error || `HTTP ${res.status}`);
+        }
+        return payload.taggedUser;
+      })
+    )
+  );
+
+  // Log results
+  const succeeded = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+  const failed = results.filter((r) => r.status === "rejected").map((r) => r.reason);
+
+  if (succeeded.length > 0) {
+    console.log(`✅ Email notifications sent successfully to: ${succeeded.join(", ")}`);
+  }
+
+  if (failed.length > 0) {
+    console.warn(`⚠️ Failed to notify ${failed.length} user(s):`, failed);
+  }
 }
 
 /**
@@ -2059,6 +2179,11 @@ function sendMessage() {
   
   // Add to store
   discussionStore.addMessage(message);
+
+  // Notify tagged users (fire-and-forget; don't block UI)
+  notifyTaggedUsers({ text, mentions }).catch((e) => {
+    console.warn("Tag notification failed:", e);
+  });
   
   // Clear input and mentions
   discussionInput.value = "";
