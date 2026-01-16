@@ -62,7 +62,6 @@ const teamTabBtn = document.getElementById("teamTabBtn");
 const discussionTabBtn = document.getElementById("discussionTabBtn");
 const savedNotesList = document.getElementById("savedNotesList");
 const stickyBackBtn = document.getElementById("stickyBackBtn");
-const teamBackBtn = document.getElementById("teamBackBtn");
 const teamList = document.getElementById("teamList");
 const addMemberBtn = document.getElementById("addMemberBtn");
 const teamModal = document.getElementById("teamModal");
@@ -880,14 +879,6 @@ if (teamTabBtn) {
 if (stickyBackBtn) {
   stickyBackBtn.addEventListener("click", () => {
     goBack();
-  });
-}
-
-// Back from team view to home
-if (teamBackBtn) {
-  teamBackBtn.addEventListener("click", () => {
-    setActiveNav("stickyTabBtn");
-    navigateTo("home");
   });
 }
 
