@@ -1,6 +1,7 @@
 const API_BASE_URL = "https://api.trello.com/1";
 const TRELLO_API_KEY_STORAGE_KEY = "trello_api_key";
 const TRELLO_TOKEN_STORAGE_KEY = "trello_token";
+const TRELLO_LIST_STORAGE_KEY = "trello_default_list_id";
 
 const ensureLocalStorageAvailable = () => {
   if (typeof localStorage === "undefined") {
@@ -8,22 +9,26 @@ const ensureLocalStorageAvailable = () => {
   }
 };
 
-const readTrelloCredentials = () => {
+const getCredentialSnapshot = () => {
   ensureLocalStorageAvailable();
+  return {
+    key: (localStorage.getItem(TRELLO_API_KEY_STORAGE_KEY) || "").trim(),
+    token: (localStorage.getItem(TRELLO_TOKEN_STORAGE_KEY) || "").trim(),
+    listId: (localStorage.getItem(TRELLO_LIST_STORAGE_KEY) || "").trim()
+  };
+};
 
-  const key = localStorage.getItem(TRELLO_API_KEY_STORAGE_KEY);
-  const token = localStorage.getItem(TRELLO_TOKEN_STORAGE_KEY);
-
+const readAuthCredentials = () => {
+  const { key, token } = getCredentialSnapshot();
   if (!key || !token) {
     throw new Error("Missing Trello credentials in localStorage");
   }
-
   return { key, token };
 };
 
 const trelloRequest = async (path, params = {}) => {
   const url = new URL(`${API_BASE_URL}${path}`);
-  const search = new URLSearchParams({ ...params, ...readTrelloCredentials() });
+  const search = new URLSearchParams({ ...params, ...readAuthCredentials() });
   url.search = search.toString();
 
   const response = await fetch(url.toString(), {
@@ -69,4 +74,38 @@ export const fetchCardById = (cardId, extraParams = {}) => {
     member_fields: "fullName,initials,username,avatarUrl",
     ...extraParams
   });
+};
+
+const sanitizeCardField = (value, fallback) => {
+  const safe = (value || "").toString().trim();
+  return safe || fallback;
+};
+
+export const createTrelloTask = async (title, description) => {
+  const { key, token, listId } = getCredentialSnapshot();
+  if (!key || !token || !listId) {
+    console.warn("Trello not connected");
+    return null;
+  }
+
+  const payload = new URLSearchParams({
+    idList: listId,
+    name: sanitizeCardField(title, "Mention"),
+    desc: sanitizeCardField(description, "No additional context provided."),
+    key,
+    token
+  });
+
+  const response = await fetch(`${API_BASE_URL}/cards`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: payload.toString()
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Failed to create Trello card (${response.status}): ${errorText}`);
+  }
+
+  return response.json();
 };

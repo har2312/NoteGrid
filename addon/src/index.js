@@ -1,6 +1,6 @@
 
 import { analyzeText } from "./ai.js";
-import { fetchCurrentMember, fetchMemberCards } from "./trello.js";
+import { fetchCurrentMember, fetchMemberCards, createTrelloTask } from "./trello.js";
 
 // --------------------------------------------
 // Canvas element attachment (Document Sandbox)
@@ -283,6 +283,21 @@ function goBack() {
     previousView = viewHistory.length > 1 ? viewHistory[viewHistory.length - 2] : null;
     updateViewClasses();
     updateBackVisibility();
+  }
+}
+
+async function maybeCreateMentionTask({ trelloTitle, trelloDescription }) {
+  if (!trelloTitle && !trelloDescription) {
+    return;
+  }
+
+  try {
+    const card = await createTrelloTask(trelloTitle, trelloDescription);
+    if (card) {
+      console.log("Created Trello task for mention:", card.id);
+    }
+  } catch (error) {
+    console.warn("Failed to create Trello task for mention", error);
   }
 }
 
@@ -2365,14 +2380,17 @@ async function notifyTaggedUsers({ text, mentions }) {
       }
       seenEmails.add(key);
 
-      notifiedUsers.push(member.name || mention.label);
+      const memberDisplayName = member.name?.trim() || mention.label?.replace(/^@/, "") || "User";
+      notifiedUsers.push(memberDisplayName);
 
       return {
         email,
-        taggedUser: member.name || mention.label?.replace(/^@/, "") || "User",
+        taggedUser: memberDisplayName,
         taggedBy: "You",
         message: text,
-        context: "Discussion Panel"
+        context: "Discussion Panel",
+        trelloTitle: `Mention: ${memberDisplayName}`,
+        trelloDescription: text
       };
     })
     .filter(Boolean);
@@ -2392,13 +2410,21 @@ async function notifyTaggedUsers({ text, mentions }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
-      }).then(async (res) => {
-        if (!res.ok) {
-          const error = await res.json().catch(() => ({ error: "Unknown error" }));
-          throw new Error(error.error || `HTTP ${res.status}`);
-        }
-        return payload.taggedUser;
       })
+        .then(async (res) => {
+          if (!res.ok) {
+            const error = await res.json().catch(() => ({ error: "Unknown error" }));
+            throw new Error(error.error || `HTTP ${res.status}`);
+          }
+          return payload;
+        })
+        .then((resolvedPayload) => {
+          maybeCreateMentionTask({
+            trelloTitle: resolvedPayload.trelloTitle,
+            trelloDescription: resolvedPayload.trelloDescription
+          });
+          return resolvedPayload.taggedUser;
+        })
     )
   );
 
